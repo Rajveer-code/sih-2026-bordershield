@@ -29,7 +29,14 @@ def sign_all() -> None:
         write_sod(sod, png_path.with_suffix(".sod.json"))
         print(f"[self] signed {png_path.name}")
 
-    for meta_path in sorted(PATHS["forged"].glob("forged_*.json")):
+    # Excludes *.sod.json: this is where the signed sidecar this same loop
+    # writes (line below) lands, and forged_*.json alone matches it right
+    # back -- found by re-running sign_all() a second time, which is
+    # exactly what happens if someone regenerates the corpus after a
+    # mistake. Without the exclusion, .with_suffix(".png") on an already-
+    # signed sidecar produces a nonexistent "*.sod.png" and crashes.
+    for meta_path in sorted(p for p in PATHS["forged"].glob("forged_*.json")
+                              if not p.name.endswith(".sod.json")):
         meta = json.loads(meta_path.read_text())
         png_path = meta_path.with_suffix(".png")
         mode = meta.get("crypto_mode", "self")
