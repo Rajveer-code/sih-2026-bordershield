@@ -96,15 +96,17 @@ Full rationale for the fusion rule (and the two real bugs it took to get right) 
 | FACE MISMATCH | *(disabled — see below)* | T2 biometric |
 | BREAK SIGNATURE | Hand-tampers an already-signed manifest | T0 crypto — CRITICAL, zero forensic/biometric input consulted |
 
-### Unblocking FACE MISMATCH
+### Face verification — status
 
-It's disabled because `data/portraits/` is empty and YuNet correctly detects zero faces in the procedural placeholder oval it falls back to. To turn it on:
+**MATCH is verified working** with a real photo (2026-08-28): document portrait vs. a different frame of the same person scored similarity 0.764 against the 0.363 threshold, correctly PASS, folding into a LOW verdict end to end.
 
-1. Drop **two real, consenting** face photos (`.jpg`/`.png`, clear frontal shot) into `data/portraits/`.
-2. Re-run `python -m synth.passport` — it randomly picks one as the document's baked-in portrait (`synth/passport.py::_load_or_placeholder_portrait`).
-3. On the **New Screening** screen, upload the *other* photo as the live capture for a MISMATCH demo (or the same person's second photo for a MATCH demo).
+The Attack Wall's **FACE MISMATCH** button stays disabled — it needs a *second, different* person's photo, and `data/portraits/` currently holds 3 photos of one identity only. To unblock it:
 
-`data/portraits/` is gitignored — real faces never get committed. Don't put anyone's actual passport/Aadhaar/ID scan through this pipeline expecting a real result (see "What this is NOT," above) — it only wants the face crop, not the document.
+1. Keep the existing photo(s) in `data/portraits/`, and add at least one **different person's** real, consenting face photo (`.jpg`/`.png`, clear frontal shot).
+2. Re-run `python -m synth.passport` — it randomly picks one candidate as the document's baked-in portrait (`synth/passport.py::_load_or_placeholder_portrait`, which now does an aspect-preserving center-crop, not a distorting stretch — see its docstring if the source photo is an unusual aspect ratio).
+3. On the **New Screening** screen, upload a *different* person's photo as the live capture for a real MISMATCH demo (already-verified MATCH just needs any two frames of the same person).
+
+`data/portraits/` is gitignored — real faces never get committed. Don't put anyone's actual passport/Aadhaar/ID scan through this pipeline expecting a real result (see "What this is NOT," above) — it only ever wants a face crop, not the document.
 
 ## Testing
 

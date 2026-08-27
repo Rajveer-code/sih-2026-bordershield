@@ -89,8 +89,10 @@ def render_dashboard() -> None:
                 with st.container(key=key):
                     if code == "FACE":
                         st.button(label, icon=f":material/{icon}:", use_container_width=True, disabled=True,
-                                   help="Blocked: needs two real, consenting portrait photos in data/portraits/. "
-                                        "YuNet correctly detects zero faces in the procedural placeholder.")
+                                   help="Blocked: needs a SECOND, different person's real photo. One real "
+                                        "identity is on file in data/portraits/ (live face MATCH already "
+                                        "verified working via New Screening) -- a genuine mismatch demo needs "
+                                        "someone else's photo too, not just this one person's.")
                     elif st.button(label, icon=f":material/{icon}:", use_container_width=True, help=help_text):
                         if code is None:
                             actions.run_and_log(actions.GENUINE, None)
