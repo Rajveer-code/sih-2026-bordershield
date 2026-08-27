@@ -62,6 +62,18 @@ def append(record: dict, path: str | Path | None = None) -> dict:
     return full_record
 
 
+def read_all(path: str | Path | None = None) -> list[dict]:
+    """Records in append order, malformed lines included as-is (a
+    JSONDecodeError here should surface to whoever is displaying the
+    ledger, not be swallowed) -- read-only, does not affect
+    verify_chain's own tamper detection."""
+    path = Path(path) if path else PATHS["results"] / "ledger.jsonl"
+    if not path.exists():
+        return []
+    with open(path, encoding="utf-8") as f:
+        return [json.loads(line) for line in f if line.strip()]
+
+
 def verify_chain(path: str | Path | None = None) -> tuple[bool, int | None]:
     """Returns (ok, broken_at_index). broken_at_index is the 0-based index
     of the first record whose stored hash no longer matches what its own

@@ -81,6 +81,18 @@ def test_hand_edited_manifest_fails_signature_check(pki):
     assert signal.severity == Severity.FAIL
 
 
+def test_ledger_read_all_returns_records_in_append_order(tmp_path: Path):
+    path = tmp_path / "ledger.jsonl"
+    for i in range(3):
+        ledger.append({"case_id": f"case_{i:03d}"}, path=path)
+    records = ledger.read_all(path)
+    assert [r["case_id"] for r in records] == ["case_000", "case_001", "case_002"]
+
+
+def test_ledger_read_all_on_missing_file_returns_empty_list(tmp_path: Path):
+    assert ledger.read_all(tmp_path / "does_not_exist.jsonl") == []
+
+
 def test_ledger_verifies_clean(tmp_path: Path):
     path = tmp_path / "ledger.jsonl"
     for i in range(5):

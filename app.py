@@ -1,77 +1,170 @@
-"""BorderShield AI -- Streamlit entry point.
+"""BorderShield AI -- Streamlit console.
 
-Day-2 scope: one working screen proving the hard gate live -- pick a
-document, run it through the real Trust Ladder pipeline (core/pipeline.py),
-see the verdict and every signal that produced it. The five-screen
-structure and the Attack Wall button row (docs/05-EXECUTION.md) land as
-the sprint continues; this is deliberately not that yet.
+The Attack Wall: one click runs a document end-to-end through the real
+Trust Ladder pipeline (core/pipeline.py) and writes a case to the
+hash-chained ledger (core/crypto/ledger.py). Every button here maps to a
+real, generated attack (synth/forge.py) -- nothing is staged or faked for
+the demo.
 """
 from __future__ import annotations
 
+import json
+import uuid
 from pathlib import Path
 
 import streamlit as st
 
 from config import PATHS
+from core.crypto import ledger
 from core.pipeline import screen_document
-from core.risk import traffic_light
-from core.types import Band, Severity
+from ui import screens
+from ui.style import inject
 
 st.set_page_config(page_title="BorderShield AI", page_icon="\U0001f6c2", layout="wide")
+inject()
 
-_BADGE_COLOR = {"GREEN": "#1e8e3e", "AMBER": "#b8860b", "RED": "#c62828"}
+GENUINE = PATHS["documents"] / "demo_0001.png"
+ATTACKS = {
+    "A": PATHS["forged"] / "forged_demo_0001_A.png",
+    "B": PATHS["forged"] / "forged_demo_0001_B.png",
+    "C": PATHS["forged"] / "forged_demo_0001_C.png",
+}
 
-
-def _discover_documents() -> dict[str, Path]:
-    docs = {f"GENUINE  —  {p.stem}": p for p in sorted(PATHS["documents"].glob("*.png"))}
-    docs.update({f"FORGED   —  {p.stem}": p for p in sorted(PATHS["forged"].glob("forged_*.png"))})
-    return docs
-
-
-st.title("BorderShield AI")
-st.caption(
-    "Prototype for PS 26188 — AI-Based Fake Identity & Document Screening. "
-    "Every document below is a synthetic UTO demo specimen (permanently watermarked); "
-    "no real travel document is used in this build."
-)
-
-documents = _discover_documents()
-if not documents:
-    st.error("No documents found. Run `python -m synth.passport` and `python -m synth.forge` first.")
+if not GENUINE.exists():
+    st.error("No documents found. Run `python -m synth.passport`, `python -m synth.forge`, "
+             "and `python -m synth.sign` first.")
     st.stop()
 
-choice = st.selectbox("Select a document to screen", list(documents.keys()))
-path = documents[choice]
+if "active_path" not in st.session_state:
+    st.session_state.active_path = GENUINE
+    st.session_state.active_label = None
 
-col_doc, col_verdict = st.columns([1, 1.2])
+st.markdown(screens.masthead(), unsafe_allow_html=True)
+st.write("")
+
+
+def _run_and_log(path: Path, attack_label: str | None) -> None:
+    verdict, ctx = screen_document(path)
+    st.session_state.active_path = path
+    st.session_state.active_label = attack_label
+    st.session_state.last_verdict = verdict
+    st.session_state.last_ctx = ctx
+    ledger.append({
+        "case_id": str(uuid.uuid4())[:8],
+        "source_image": path.name,
+        "attack_label": attack_label,
+        "band": verdict.band.value,
+        "score": verdict.score,
+    })
+
+
+# ---------------------------------------------------------------- Attack Wall
+st.markdown("<div class='bsx-tier-head' style='margin-top:0'>Attack Wall &mdash; one click, full pipeline</div>",
+            unsafe_allow_html=True)
+cols = st.columns(5)
+with cols[0]:
+    if st.button("\U0001f7e2\nGENUINE", use_container_width=True,
+                  help="The untouched synthetic document. Every tier should pass."):
+        _run_and_log(GENUINE, None)
+with cols[1]:
+    if st.button("\U0001f4dd\nCHANGE DOB", use_container_width=True,
+                  help="VIZ date of birth edited; MRZ left untouched. Caught by cross-zone consistency."):
+        _run_and_log(ATTACKS["A"], "A")
+with cols[2]:
+    if st.button("\U0001f5bc️\nREPLACE PHOTO", use_container_width=True,
+                  help="Portrait swapped, feathered seam. Caught by forensics AND crypto impersonation check."):
+        _run_and_log(ATTACKS["B"], "B")
+with cols[3]:
+    if st.button("\U0001f4f7\nSCREEN RECAPTURE", use_container_width=True,
+                  help="Simulated screen/print recapture: moire, glare, real JPEG re-encode. "
+                       "Forensics only -- must route to AMBER, never RED."):
+        _run_and_log(ATTACKS["C"], "C")
+with cols[4]:
+    st.button("\U0001f464\nFACE MISMATCH", use_container_width=True, disabled=True,
+               help="Blocked: needs two real, consenting portrait photos in data/portraits/. "
+                    "YuNet correctly detects zero faces in the procedural placeholder -- "
+                    "the module is built and unit-tested (tests/test_face.py), just not "
+                    "demonstrable live yet.")
+
+st.write("")
+
+# --------------------------------------------------------------- Main display
+# Renders whatever active_path currently is -- never a hardcoded document.
+# An earlier version hardcoded GENUINE here, which was correct at the time
+# this ran but became a real bug once Reset needed to touch active_path
+# too: two code paths each assuming they were the one place that decided
+# "what's on screen" is exactly how the image and the verdict fell out of
+# sync in testing (Reset cleared the cached verdict but this block re-showed
+# GENUINE regardless of what active_path said). One source of truth now.
+#
+# Recomputing here is NOT a screening event an officer performed, so it
+# must never write a ledger entry -- only an explicit Attack Wall click
+# does that (_run_and_log, above). Getting this wrong would mean the audit
+# trail fills with noise every time someone merely opens or refreshes the
+# page, or triggers an incidental rerun.
+if "last_verdict" not in st.session_state:
+    _verdict, _ctx = screen_document(st.session_state.active_path)
+    st.session_state.last_verdict = _verdict
+    st.session_state.last_ctx = _ctx
+
+verdict = st.session_state.last_verdict
+ctx = st.session_state.last_ctx
+path = st.session_state.active_path
+
+col_doc, col_verdict = st.columns([1, 1.25], gap="large")
 
 with col_doc:
     st.image(str(path), caption=path.name, use_container_width=True)
 
 with col_verdict:
-    with st.spinner("Running the Trust Ladder..."):
-        verdict, ctx = screen_document(path)
+    st.markdown(screens.verdict_badge(verdict), unsafe_allow_html=True)
+    note = screens.crypto_note(verdict)
+    if note:
+        st.markdown(note, unsafe_allow_html=True)
+    st.markdown(f"**Recommended action:** {verdict.action}")
+    st.markdown(screens.evidence_by_tier(verdict), unsafe_allow_html=True)
 
-    light = traffic_light(verdict.band)
-    color = _BADGE_COLOR[light]
-    st.markdown(
-        f"<div style='padding:1.2rem;border-radius:0.5rem;background:{color};"
-        f"color:white;text-align:center;margin-bottom:1rem'>"
-        f"<div style='font-size:2.2rem;font-weight:700'>{light}</div>"
-        f"<div style='font-size:1rem'>{verdict.band.value} &middot; score {verdict.score}/100</div>"
-        f"</div>",
-        unsafe_allow_html=True,
-    )
-    st.subheader("Recommended action")
-    st.write(verdict.action)
-    if verdict.crypto_override:
-        st.info("This verdict was forced by a cryptographic signature failure -- "
-                "no model was consulted for this decision.")
+st.divider()
 
-    st.subheader("Trust Ladder evidence")
-    for s in verdict.signals:
-        icon = {Severity.PASS: "✅", Severity.FAIL: "❌", Severity.WEAK: "⚠️"}[s.severity]
-        st.markdown(f"{icon} **{s.check}** ({s.tier.value})  \n{s.message}")
+# ------------------------------------------------------------------ Investigation
+st.markdown("<div class='bsx-tier-head' style='margin-top:0'>Investigation &mdash; audit trail</div>",
+            unsafe_allow_html=True)
+col_ledger, col_actions = st.columns([2.2, 1], gap="large")
+
+with col_ledger:
+    records = ledger.read_all()
+    st.markdown(screens.ledger_table(records), unsafe_allow_html=True)
+    st.markdown(screens.chain_status(), unsafe_allow_html=True)
+
+with col_actions:
+    st.caption("Demonstrate tamper-evidence: rewrite a past verdict by hand, "
+               "then re-verify the chain.")
+    if st.button("Simulate tampering with a past case", use_container_width=True):
+        records = ledger.read_all()
+        if len(records) < 1:
+            st.warning("Screen at least one document first.")
+        else:
+            path_l = PATHS["results"] / "ledger.jsonl"
+            lines = path_l.read_text(encoding="utf-8").splitlines()
+            idx = 0
+            record = json.loads(lines[idx])
+            record["band"] = "LOW"  # an attacker quietly clears a past CRITICAL case
+            lines[idx] = json.dumps(record, sort_keys=True)
+            path_l.write_text("\n".join(lines) + "\n", encoding="utf-8")
+            st.rerun()
+
+    if st.button("Reset ledger (demo utility)", use_container_width=True):
+        path_l = PATHS["results"] / "ledger.jsonl"
+        path_l.unlink(missing_ok=True)
+        # Must reset active_path/active_label too, not just the cached
+        # verdict -- found by actually clicking this in the browser: the
+        # verdict fell back to GENUINE's while the displayed image stayed
+        # on whatever attack was active, showing a mismatched pair.
+        for key in ("last_verdict", "last_ctx"):
+            st.session_state.pop(key, None)
+        st.session_state.active_path = GENUINE
+        st.session_state.active_label = None
+        st.rerun()
 
 st.divider()
 with st.expander("Decoded MRZ (read from pixels, not from generation metadata)"):
