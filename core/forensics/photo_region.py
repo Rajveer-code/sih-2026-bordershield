@@ -19,11 +19,21 @@ from core.rules.engine import load_policy
 from core.types import Severity, Signal, Tier
 
 RING_WIDTH = 6
-# Calibrated against demo_0001 (genuine 0.983, attack A 0.983 -- portrait
-# untouched, correctly unchanged -- attack B 0.821, attack C 2.076). One
-# sample per class: a real, direction-correct signal, not a statistically
-# validated threshold -- see docs/06.
-RATIO_THRESHOLD = 0.90
+# Recalibrated 2026-08-28 after the first real (non-placeholder) portrait
+# was supplied: the original 0.90 was fit to the procedural placeholder
+# oval alone (genuine/attack A scored 0.983 there -- a flat, near-uniform
+# drawing keeps ring and interior sharpness almost identical). A real
+# photograph does not: its rim (hair/shoulder/background) is naturally
+# less textured than its interior (eyes, glasses, facial detail), which
+# drags genuine's own ratio down to ~0.75 -- comfortably above the old
+# threshold's failure mode caught here (real photo genuine scored 0.75 and
+# FAILED against 0.90). Re-measured against demo_0001 with the real
+# portrait baked in: genuine 0.750, attack A 0.750 (portrait untouched,
+# correctly identical to genuine), attack B (real photo swap) 0.112,
+# attack C 1.670. Still one real sample per class, not a statistically
+# validated threshold -- see docs/06 -- but the genuine/attack-B gap
+# (0.750 vs 0.112) has wide margin either side of 0.40.
+RATIO_THRESHOLD = 0.40
 
 
 def _laplacian_variance(patch: np.ndarray) -> float:
