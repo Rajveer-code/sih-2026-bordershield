@@ -86,11 +86,32 @@ def placeholder_portrait(size: tuple[int, int], rng: random.Random) -> Image.Ima
     return img
 
 
+def _cover_resize(img: Image.Image, size: tuple[int, int]) -> Image.Image:
+    """Resize preserving aspect ratio until `img` fully covers `size`, then
+    center-crop to it exactly -- unlike a blind .resize(), this never
+    distorts a real photo's proportions. A real portrait almost never
+    arrives already in the portrait box's own aspect ratio (webcam/phone
+    photos are landscape or square), and a stretched face measurably
+    shrinks YuNet's detected bbox on its squeezed axis: found by actually
+    running a real supplied photo end to end -- a 1280x720 frame blindly
+    resized into the 220x280 portrait box produced a 47x90 face detection
+    (width crushed under quality_gate's 60px floor) although the same
+    photo's own raw frame detected a clean 209px-wide face.
+    """
+    target_w, target_h = size
+    src_w, src_h = img.size
+    scale = max(target_w / src_w, target_h / src_h)
+    new_w, new_h = round(src_w * scale), round(src_h * scale)
+    resized = img.resize((new_w, new_h))
+    left, top = (new_w - target_w) // 2, (new_h - target_h) // 2
+    return resized.crop((left, top, left + target_w, top + target_h))
+
+
 def _load_or_placeholder_portrait(size: tuple[int, int], rng: random.Random) -> tuple[Image.Image, str]:
     candidates = sorted(PATHS["portraits"].glob("*.jpg")) + sorted(PATHS["portraits"].glob("*.png"))
     if candidates:
         path = rng.choice(candidates)
-        img = Image.open(path).convert("RGB").resize(size)
+        img = _cover_resize(Image.open(path).convert("RGB"), size)
         return img, f"user_supplied:{path.name}"
     print("[synth.passport] WARNING: no files in data/portraits/ -- using a "
           "procedural placeholder face. Add real portraits before the "
