@@ -12,9 +12,22 @@ import random
 import cv2
 import numpy as np
 
-from core.face.pipeline import quality_gate, verify
+from core.face.pipeline import cosine_similarity, quality_gate, verify
 from core.types import Severity
 from synth.passport import placeholder_portrait
+
+
+def test_cosine_similarity_uses_a_valid_opencv_distance_constant():
+    """Regression test: cv2.FaceRecognizerSF.FR_COSINE (the nested-enum
+    spelling, valid on OpenCV 4.x) does not exist on opencv-contrib-python
+    5.0.0 -- AttributeError, only ever hit once two real faces both
+    cleared the quality gate for the first time in this project's life,
+    since every other test here deliberately avoids needing a real face.
+    Doesn't need one either: match() just needs two same-shaped feature
+    vectors, real biometric content or not."""
+    a = np.random.RandomState(0).rand(1, 128).astype(np.float32)
+    b = np.random.RandomState(1).rand(1, 128).astype(np.float32)
+    assert isinstance(cosine_similarity(a, b), float)
 
 
 def _placeholder_bgr(seed: int = 1) -> np.ndarray:

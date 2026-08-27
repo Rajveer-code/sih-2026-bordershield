@@ -89,7 +89,13 @@ def embed(bgr: np.ndarray, face_row: np.ndarray) -> np.ndarray:
 
 def cosine_similarity(feature_a: np.ndarray, feature_b: np.ndarray) -> float:
     recognizer = _get_recognizer()
-    return float(recognizer.match(feature_a, feature_b, cv2.FaceRecognizerSF.FR_COSINE))
+    # cv2.FaceRecognizerSF.FR_COSINE (the nested-enum spelling, valid on the
+    # OpenCV 4.x this was originally written against) was never actually
+    # exercised until two real faces both cleared the quality gate for the
+    # first time -- opencv-contrib-python 5.0.0's Python bindings flatten
+    # it to a module-level name instead. Confirmed against the installed
+    # module (dir(cv2.FaceRecognizerSF) no longer lists FR_COSINE at all).
+    return float(recognizer.match(feature_a, feature_b, cv2.FaceRecognizerSF_FR_COSINE))
 
 
 # Placeholder until real portraits let this project measure its own
