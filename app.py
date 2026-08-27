@@ -12,11 +12,17 @@ import json
 import uuid
 from pathlib import Path
 
+import cv2
+import numpy as np
 import streamlit as st
+from PIL import Image
 
-from config import PATHS
+from config import DOC_SIZE, PATHS
 from core.crypto import ledger
+from core.face.pipeline import verify as face_verify
+from core.forensics.heatmap import overlay
 from core.pipeline import screen_document
+from core.types import Severity
 from ui import screens
 from ui.style import inject
 
@@ -43,14 +49,25 @@ st.markdown(screens.masthead(), unsafe_allow_html=True)
 st.write("")
 
 
-def _run_and_log(path: Path, attack_label: str | None) -> None:
-    verdict, ctx = screen_document(path)
+def cv2_bgr_from_upload(uploaded_file) -> np.ndarray:
+    """A Streamlit UploadedFile/camera capture, decoded straight to a BGR
+    array in memory -- never written to disk. There is no reason to
+    persist a live face capture, and every reason not to: it is exactly
+    the kind of biometric data the project's own privacy stance
+    (docs/02-STRATEGY.md) says never to store beyond the moment it's used."""
+    pil_img = Image.open(uploaded_file).convert("RGB")
+    return cv2.cvtColor(np.array(pil_img), cv2.COLOR_RGB2BGR)
+
+
+def _run_and_log(path: Path, attack_label: str | None, extra_signals: list | None = None) -> None:
+    verdict, ctx = screen_document(path, extra_signals=extra_signals)
     st.session_state.active_path = path
     st.session_state.active_label = attack_label
     st.session_state.last_verdict = verdict
     st.session_state.last_ctx = ctx
+    st.session_state.case_id = str(uuid.uuid4())[:8]
     ledger.append({
-        "case_id": str(uuid.uuid4())[:8],
+        "case_id": st.session_state.case_id,
         "source_image": path.name,
         "attack_label": attack_label,
         "band": verdict.band.value,
@@ -106,6 +123,7 @@ if "last_verdict" not in st.session_state:
     _verdict, _ctx = screen_document(st.session_state.active_path)
     st.session_state.last_verdict = _verdict
     st.session_state.last_ctx = _ctx
+    st.session_state.case_id = "PREVIEW"  # never logged -- see the comment above
 
 verdict = st.session_state.last_verdict
 ctx = st.session_state.last_ctx
@@ -114,7 +132,12 @@ path = st.session_state.active_path
 col_doc, col_verdict = st.columns([1, 1.25], gap="large")
 
 with col_doc:
-    st.image(str(path), caption=path.name, use_container_width=True)
+    has_findings = any(s.severity == Severity.FAIL for s in verdict.signals)
+    if has_findings:
+        st.image(overlay(str(path), verdict), caption=f"{path.name} -- flagged regions boxed in red",
+                  use_container_width=True)
+    else:
+        st.image(str(path), caption=path.name, use_container_width=True)
 
 with col_verdict:
     st.markdown(screens.verdict_badge(verdict), unsafe_allow_html=True)
@@ -123,6 +146,54 @@ with col_verdict:
         st.markdown(note, unsafe_allow_html=True)
     st.markdown(f"**Recommended action:** {verdict.action}")
     st.markdown(screens.evidence_by_tier(verdict), unsafe_allow_html=True)
+
+st.write("")
+with st.expander("Case report", expanded=False):
+    st.markdown(
+        screens.case_report(st.session_state.case_id, path.name, verdict, st.session_state.active_label),
+        unsafe_allow_html=True,
+    )
+
+st.divider()
+
+# ---------------------------------------------------------------------- Capture
+st.markdown("<div class='bsx-tier-head' style='margin-top:0'>Capture &mdash; screen your own edit</div>",
+            unsafe_allow_html=True)
+st.caption(
+    "This pipeline reads a fixed template (the UTO demo document's exact 1000×700 layout), not "
+    "arbitrary real-world documents -- general document detection and OCR are explicitly out of scope "
+    "for this prototype (see docs/06-VERIFY-QUEUE.md). Edit one of the Attack Wall PNGs yourself -- crop "
+    "a field, paste a different photo, anything -- and upload it here to see how the system reacts."
+)
+col_up, col_face = st.columns(2, gap="large")
+
+with col_up:
+    uploaded_doc = st.file_uploader("Upload an edited UTO document (PNG, 1000×700)", type=["png"])
+
+with col_face:
+    live_capture = st.camera_input("Live face capture (optional -- for face verification)")
+    if live_capture is None:
+        live_capture = st.file_uploader("...or upload a face photo instead", type=["png", "jpg", "jpeg"],
+                                          key="face_upload")
+
+if uploaded_doc is not None:
+    doc_img = Image.open(uploaded_doc).convert("RGB")
+    if doc_img.size != DOC_SIZE:
+        st.error(f"Expected a {DOC_SIZE[0]}×{DOC_SIZE[1]} image (the UTO template's own canvas size), "
+                  f"got {doc_img.size[0]}×{doc_img.size[1]}. This pipeline reads fixed pixel "
+                  f"coordinates, not an arbitrary layout -- see the note above.")
+    elif st.button("Screen this document", type="primary"):
+        custom_path = PATHS["documents"] / "_uploaded_custom.png"
+        doc_img.save(custom_path)
+
+        face_signal = None
+        if live_capture is not None:
+            live_bgr = cv2_bgr_from_upload(live_capture)
+            doc_bgr = cv2_bgr_from_upload(uploaded_doc)
+            face_signal = face_verify(doc_bgr, live_bgr)
+
+        _run_and_log(custom_path, "CUSTOM", extra_signals=[face_signal] if face_signal else None)
+        st.rerun()
 
 st.divider()
 

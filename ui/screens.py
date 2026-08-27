@@ -97,3 +97,37 @@ def chain_status(path=None) -> str:
     if ok:
         return "<span class='bsx-ledger-ok'>&#10003; chain intact</span>"
     return f"<span class='bsx-ledger-broken'>&#10007; CHAIN INTEGRITY FAILED at record {broken_at}</span>"
+
+
+def case_report(case_id: str, doc_name: str, verdict: Verdict, attack_label: str | None) -> str:
+    """A compact, printable-style summary of the CURRENTLY ACTIVE case --
+    complements ledger_table's list of every past case with the one
+    someone is looking at right now. Only failing signals are listed
+    (a clean case has nothing to report beyond the verdict itself)."""
+    light = traffic_light(verdict.band)
+    css_class = {"GREEN": "green", "AMBER": "amber", "RED": "red"}[light]
+    findings = [s for s in verdict.signals if s.severity.value == "fail"]
+
+    findings_html = (
+        "<ul style='margin:0.3rem 0 0 1.1rem;padding:0;color:var(--text-2);'>"
+        + "".join(f"<li>{s.message}</li>" for s in findings)
+        + "</ul>"
+    ) if findings else "<p style='color:var(--text-3);margin:0.3rem 0 0 0;'>No findings.</p>"
+
+    return f"""
+    <div style="border:1px solid var(--line);border-radius:8px;padding:1.1rem 1.3rem;background:var(--surface);">
+      <div style="font-family:'IBM Plex Mono',monospace;font-size:0.72rem;letter-spacing:0.1em;
+                  text-transform:uppercase;color:var(--text-3);margin-bottom:0.5rem;">
+        Case {case_id}
+      </div>
+      <div style="display:flex;justify-content:space-between;align-items:baseline;flex-wrap:wrap;gap:0.5rem;">
+        <div><b>Document:</b> {doc_name} {f'&middot; attack {attack_label}' if attack_label else ''}</div>
+        <div class="band-{light}" style="font-family:'IBM Plex Mono',monospace;font-weight:700;">
+          {verdict.score}/100 &middot; {light}
+        </div>
+      </div>
+      <div style="margin-top:0.4rem;"><b>Classification:</b> {verdict.band.value}</div>
+      <div style="margin-top:0.4rem;"><b>Findings:</b>{findings_html}</div>
+      <div style="margin-top:0.6rem;"><b>Recommended action:</b> {verdict.action}</div>
+    </div>
+    """
