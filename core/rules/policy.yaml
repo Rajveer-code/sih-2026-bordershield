@@ -14,8 +14,15 @@ risk_weights:
 risk_bands:
   # [min, max, band, recommended_action] -- action text is never an
   # accusation, even at CRITICAL. See core/risk.py.
-  - [0, 25, LOW, "No action required"]
-  - [26, 50, MEDIUM, "Routine review"]
+  #
+  # LOW is exactly zero, deliberately: any fired signal at all -- even one
+  # weight-light advisory (forensics/biometric) FAIL -- must escape LOW.
+  # An earlier version used [0, 25] here, so a single 25-point photo
+  # anomaly landed on the LOW/MEDIUM boundary and reported "no action
+  # required" despite a real, fired signal. Found by running every attack
+  # through the actual pipeline, not just the isolated detector scripts.
+  - [0, 0, LOW, "No action required"]
+  - [1, 50, MEDIUM, "Routine review"]
   - [51, 75, HIGH, "Secondary inspection recommended"]
   - [76, 100, CRITICAL, "Secondary inspection recommended"]
 

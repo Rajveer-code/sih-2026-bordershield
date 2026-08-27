@@ -12,7 +12,8 @@ from pathlib import Path
 import cv2
 
 from core import crosszone
-from core.fields import MRZ_BAND_BBOX
+from core.fields import MRZ_BAND_BBOX, PORTRAIT_BBOX
+from core.forensics import ela, noise, photo_region, recapture
 from core.mrz import decode_fields, mrz_signals, read_td3
 from core.rules import engine as rules_engine
 from core.rules.engine import load_policy
@@ -21,7 +22,8 @@ from core.types import Case, Verdict
 
 
 def screen_document(image_path: str | Path, crypto_valid: bool | None = None,
-                     extra_signals: list | None = None) -> tuple[Verdict, dict]:
+                     extra_signals: list | None = None, run_forensics: bool = True
+                     ) -> tuple[Verdict, dict]:
     """Returns (verdict, context) where context carries the decoded MRZ
     fields and both raw lines, for the UI to display."""
     gray = cv2.imread(str(image_path), cv2.IMREAD_GRAYSCALE)
@@ -36,6 +38,15 @@ def screen_document(image_path: str | Path, crypto_valid: bool | None = None,
     signals += mrz_signals(line2, policy=policy)
     signals += crosszone.compare(gray, MRZ_BAND_BBOX, policy=policy)
     signals += rules_engine.evaluate(fields, policy=policy)
+    if run_forensics:
+        # Tier.FORENSICS is advisory-only by construction in core/risk.py --
+        # including a currently-non-discriminating signal (noise.py on this
+        # attack set) is safe by design: it can only ever contribute an
+        # honest PASS, never force a wrong verdict.
+        signals.append(photo_region.check(gray, PORTRAIT_BBOX, policy=policy))
+        signals.append(noise.check(gray, exclude_bbox_xywh=MRZ_BAND_BBOX, policy=policy))
+        signals.append(recapture.check(gray, policy=policy))
+        signals.append(ela.check(gray))
     signals += extra_signals or []
 
     verdict = fuse(signals, crypto_valid=crypto_valid, policy=policy)
@@ -58,6 +69,6 @@ if __name__ == "__main__":
     print(f"{path}")
     print(f"  verdict: {traffic_light(verdict.band)} ({verdict.band.value}), score={verdict.score}")
     print(f"  action:  {verdict.action}")
+    marks = {"pass": "PASS", "fail": "FAIL", "weak": "WEAK"}
     for s in verdict.signals:
-        mark = "PASS" if s.severity.value == "pass" else "FAIL"
-        print(f"    [{mark}] {s.check:28s} {s.message}")
+        print(f"    [{marks[s.severity.value]}] {s.check:28s} {s.message}")

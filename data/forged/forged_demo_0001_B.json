@@ -1,0 +1,16 @@
+{
+  "attack": "B",
+  "name": "portrait_replacement",
+  "field": "portrait",
+  "original_value": "placeholder",
+  "forged_value": "placeholder_seed_27611",
+  "bbox": [
+    60,
+    150,
+    280,
+    430
+  ],
+  "mrz_untouched": true,
+  "expected_detection_tier": "forensics (photo region) + crypto (portrait hash)",
+  "source_doc": "demo_0001"
+}
