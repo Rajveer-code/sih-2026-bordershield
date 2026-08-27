@@ -36,8 +36,7 @@ from __future__ import annotations
 from core.rules.engine import load_policy
 from core.types import Band, Severity, Signal, Tier, Verdict
 
-_ADVISORY_TIERS = {Tier.FORENSICS, Tier.BIOMETRIC}
-_DECISIVE_TIERS = {Tier.RULES}  # crypto handled separately via crypto_valid
+_DECISIVE_TIERS = {Tier.RULES}  # crypto handled separately via crypto_valid; forensics/biometric are advisory-only by omission from this set
 
 
 def _band_for_score(score: int, policy: dict) -> tuple[Band, str]:
@@ -66,19 +65,34 @@ def fuse(signals: list[Signal], crypto_valid: bool | None = None, policy: dict |
                         action="Secondary inspection recommended",
                         signals=signals, crypto_override=False)
 
-    if crypto_valid is True:
-        # cryptographic proof, and nothing decisive failed: the strongest
-        # clearance this system gives.
-        return Verdict(score=0, band=Band.LOW, action="No action required",
-                        signals=signals, crypto_override=False)
-
-    # Nothing decisive at all (no crypto tier, no rules failure): only
-    # advisory (forensics/biometric) evidence remains. Band it normally,
-    # but it is structurally incapable of reaching CRITICAL -- that band
-    # is reserved for a decisive failure, never for a model's opinion.
+    # Nothing decisive failed (crypto_valid is True or None): only
+    # advisory (forensics/biometric) evidence remains, if any. Band it
+    # normally, but it is structurally incapable of reaching CRITICAL --
+    # that band is reserved for a decisive failure, never for a model's
+    # opinion.
+    #
+    # An earlier version of this branch let crypto_valid is True shortcut
+    # straight to LOW here, before ever looking at raw_score. That was a
+    # real bug, not just an early return: it meant a document with a
+    # verified-untampered signature but a genuinely fired forensic signal
+    # (e.g. a screen recapture, self-signed at intake -- crypto correctly
+    # PASSES because nothing has changed since signing, but recapture.py
+    # still fired) got reported as a clean LOW/GREEN, silently erasing the
+    # forensic finding. Found by running the full pipeline against every
+    # attack once crypto was actually wired in, not by inspecting this
+    # function in isolation. Crypto proving "unaltered since signing" and
+    # forensics finding "something looks suspicious in what was captured"
+    # are answers to two different questions; one must never suppress the
+    # other.
     band, action = _band_for_score(raw_score, policy)
     if band == Band.CRITICAL:
         band, action = Band.HIGH, "Secondary inspection recommended"
+
+    if crypto_valid is True and raw_score == 0:
+        # cryptographic proof AND a genuinely clean advisory record: the
+        # strongest clearance this system gives.
+        band, action = Band.LOW, "No action required"
+
     return Verdict(score=raw_score, band=band, action=action, signals=signals,
                     crypto_override=False)
 

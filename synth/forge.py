@@ -95,6 +95,11 @@ def attack_dob_modification(doc_png_path: Path, doc_json_path: Path, rng: random
         "bbox": list(bbox),
         "mrz_untouched": True,
         "expected_detection_tier": "rules (cross-zone consistency)",
+        # This attack alters the ORIGINAL capture, not a stored record
+        # after the fact -- crypto should sign THIS image at intake and
+        # verify against that same signature (self-consistency), correctly
+        # finding nothing wrong. See core/crypto/manifest.py's docstring.
+        "crypto_mode": "self",
     }
     return forged, mask, meta
 
@@ -149,6 +154,11 @@ def attack_portrait_replacement(doc_png_path: Path, doc_json_path: Path, rng: ra
         "bbox": list(bbox),
         "mrz_untouched": True,
         "expected_detection_tier": "forensics (photo region) + crypto (portrait hash)",
+        # This attack's whole premise is impersonating an EXISTING signed
+        # record with a substituted photo -- verify it against source_doc's
+        # own signature, not a fresh signature over the forged image
+        # itself (which would trivially match its own tampered pixels).
+        "crypto_mode": "impersonation",
     }
     return forged, mask, meta
 
@@ -200,6 +210,7 @@ def attack_screen_recapture(doc_png_path: Path, doc_json_path: Path, rng: random
         "bbox": [0, 0, w, h],
         "mrz_untouched": False,  # MRZ pixels are degraded too, just not semantically edited
         "expected_detection_tier": "forensics only (no rules/crosszone violation) -- must route to AMBER, never RED",
+        "crypto_mode": "self",
     }
     return forged, mask, meta
 

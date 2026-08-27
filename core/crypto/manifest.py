@@ -139,3 +139,27 @@ def verify_document(image_path: str | Path, sod: dict, csca_cert: x509.Certifica
     return Signal(tier=Tier.CRYPTO, check="manifest_match", severity=Severity.PASS, weight=0,
                    message="Presented document matches its signed record exactly; signature chain verified "
                             "(demo signing authority -- see core/crypto/pki.py)")
+
+
+def resolve_and_verify(image_path: str | Path, csca_cert: x509.Certificate,
+                        policy: dict | None = None) -> Signal | None:
+    """Looks for a signed record for this exact image (a "<image>.sod.json"
+    sidecar -- the self-consistency case), and failing that, for a forged_*
+    attack's own metadata naming which OTHER document's signature it should
+    be checked against (the impersonation case; see synth/sign.py).
+    Returns None if no signed record exists or applies at all -- meaning
+    no crypto tier was evaluated, not that it passed.
+    """
+    image_path = Path(image_path)
+    own_sod = image_path.with_suffix(".sod.json")
+    if own_sod.exists():
+        return verify_document(image_path, load_sod(own_sod), csca_cert, policy=policy)
+
+    meta_path = image_path.with_suffix(".json")
+    if meta_path.exists():
+        meta = json.loads(meta_path.read_text())
+        if meta.get("crypto_mode") == "impersonation" and "source_doc" in meta:
+            reference_sod = image_path.parent.parent / "documents" / f"{meta['source_doc']}.sod.json"
+            if reference_sod.exists():
+                return verify_document(image_path, load_sod(reference_sod), csca_cert, policy=policy)
+    return None

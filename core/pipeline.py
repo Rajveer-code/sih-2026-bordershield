@@ -22,15 +22,20 @@ from core.types import Case, Severity, Verdict
 
 
 def screen_document(image_path: str | Path, crypto_signal=None,
-                     extra_signals: list | None = None, run_forensics: bool = True
-                     ) -> tuple[Verdict, dict]:
+                     extra_signals: list | None = None, run_forensics: bool = True,
+                     auto_crypto: bool = True) -> tuple[Verdict, dict]:
     """crypto_signal: an optional core.types.Signal from
-    core.crypto.manifest.verify_document (Tier.CRYPTO). Its severity
+    core.crypto.manifest.verify_document (Tier.CRYPTO), for a caller that
+    has already resolved which record to check against. If not supplied
+    and auto_crypto is True (the default), this looks for a signed record
+    automatically via core.crypto.manifest.resolve_and_verify -- a
+    "<image>.sod.json" sidecar (self-consistency), or, for a forged_*
+    attack image, its declared source document's signature
+    (impersonation). See core/crypto/manifest.py's docstring for why
+    those are two different, deliberately distinct checks. Its severity
     determines crypto_valid for fusion: PASS -> True, FAIL -> False,
     absent -> None (no crypto tier evaluated at all, e.g. no signed
-    record exists for this presentation). See core/crypto/manifest.py's
-    docstring for why self-consistency and impersonation are two
-    different, deliberately distinct checks a caller chooses between.
+    record exists anywhere for this presentation).
 
     Returns (verdict, context) where context carries the decoded MRZ
     fields and both raw lines, for the UI to display."""
@@ -39,6 +44,12 @@ def screen_document(image_path: str | Path, crypto_signal=None,
         raise FileNotFoundError(f"could not read image: {image_path}")
 
     policy = load_policy()
+
+    if crypto_signal is None and auto_crypto:
+        from core.crypto.manifest import resolve_and_verify
+        from core.crypto.pki import load_or_create_pki
+        csca_cert, _, _ = load_or_create_pki()
+        crypto_signal = resolve_and_verify(image_path, csca_cert, policy=policy)
     line1, line2, _ = read_td3(gray, MRZ_BAND_BBOX)
     fields = decode_fields(line1, line2)
 
