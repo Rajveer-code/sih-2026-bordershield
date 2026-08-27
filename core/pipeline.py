@@ -18,13 +18,21 @@ from core.mrz import decode_fields, mrz_signals, read_td3
 from core.rules import engine as rules_engine
 from core.rules.engine import load_policy
 from core.risk import fuse
-from core.types import Case, Verdict
+from core.types import Case, Severity, Verdict
 
 
-def screen_document(image_path: str | Path, crypto_valid: bool | None = None,
+def screen_document(image_path: str | Path, crypto_signal=None,
                      extra_signals: list | None = None, run_forensics: bool = True
                      ) -> tuple[Verdict, dict]:
-    """Returns (verdict, context) where context carries the decoded MRZ
+    """crypto_signal: an optional core.types.Signal from
+    core.crypto.manifest.verify_document (Tier.CRYPTO). Its severity
+    determines crypto_valid for fusion: PASS -> True, FAIL -> False,
+    absent -> None (no crypto tier evaluated at all, e.g. no signed
+    record exists for this presentation). See core/crypto/manifest.py's
+    docstring for why self-consistency and impersonation are two
+    different, deliberately distinct checks a caller chooses between.
+
+    Returns (verdict, context) where context carries the decoded MRZ
     fields and both raw lines, for the UI to display."""
     gray = cv2.imread(str(image_path), cv2.IMREAD_GRAYSCALE)
     if gray is None:
@@ -47,7 +55,13 @@ def screen_document(image_path: str | Path, crypto_valid: bool | None = None,
         signals.append(noise.check(gray, exclude_bbox_xywh=MRZ_BAND_BBOX, policy=policy))
         signals.append(recapture.check(gray, policy=policy))
         signals.append(ela.check(gray))
+    if crypto_signal is not None:
+        signals.append(crypto_signal)
     signals += extra_signals or []
+
+    crypto_valid = None
+    if crypto_signal is not None:
+        crypto_valid = crypto_signal.severity == Severity.PASS
 
     verdict = fuse(signals, crypto_valid=crypto_valid, policy=policy)
     context = {"line1": line1, "line2": line2, "fields": fields, "gray": gray}

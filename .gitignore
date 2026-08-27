@@ -2,7 +2,16 @@ venv/
 __pycache__/
 *.pyc
 .env
-data/raw/
-results/scratch/
+.streamlit/secrets.toml
+
+# All generated/downloaded artifacts -- everything here is reproducible
+# from a script (synth/passport.py, synth/forge.py, core/glyphs.py,
+# core/viz_ocr.py) or a documented download (models/*.onnx). See the
+# security review that caught data/pki/ specifically: it holds real,
+# unencrypted demo signing keys and must never be committed.
+data/
+models/
+results/
+
 *.log
 .DS_Store
