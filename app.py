@@ -26,43 +26,52 @@ if not actions.GENUINE.exists():
     st.stop()
 
 if "page" not in st.session_state:
-    st.session_state.page = "dashboard"
+    st.session_state.page = "overview"
 
+# Four destinations, each answering a different question: what is
+# happening (command), screen this person (new screening), what is wrong
+# with THIS case (case file), is the record trustworthy (audit trail).
+# The previous five split one case across three of them -- see
+# ui/pages.py::render_case for why that was merged.
 _NAV_ITEMS = [
-    ("dashboard", "Command Dashboard", "dashboard"),
-    ("capture", "New Screening", "person_search"),
-    ("evidence", "Evidence Analysis", "assignment_ind"),
-    ("risk", "Risk Decision", "assessment"),
-    ("investigation", "Investigation", "qr_code_2"),
+    ("overview", "Overview", "info"),
+    ("dashboard", "Command", "dashboard"),
+    ("capture", "New screening", "person_search"),
+    ("case", "Case file", "assignment_ind"),
+    ("audit", "Audit trail", "history"),
 ]
+_LEGACY_PAGES = {"evidence": "case", "risk": "case", "investigation": "audit"}
+st.session_state.page = _LEGACY_PAGES.get(st.session_state.page, st.session_state.page)
 
 with st.sidebar:
     st.markdown(screens.sidebar_brand_html(), unsafe_allow_html=True)
-    if st.button("New Entry Scan", icon=":material/add:", use_container_width=True, key="nav_new_entry"):
-        st.session_state.page = "capture"
-        st.rerun()
-    st.write("")
     for page_id, label, icon in _NAV_ITEMS:
         with st.container(key=f"navbtn_{page_id}"):
             if st.button(label, icon=f":material/{icon}:", use_container_width=True, key=f"navbtn_btn_{page_id}"):
                 st.session_state.page = page_id
                 st.rerun()
+    if st.session_state.get("screening_mode_radio") == "Real Document":
+        st.markdown(
+            "<div class='bsx-nav-note'>Case file and Audit trail cover Demo Document "
+            "(Attack Wall) cases. Real Document results appear inline on New "
+            "screening, directly under the upload.</div>", unsafe_allow_html=True)
 
 # Highlights whichever nav item is active this rerun. Scoped to a stable,
 # self-assigned container key (st.container(key=...)) rather than any of
 # Streamlit's own internal button/testid attributes -- those are a version
 # implementation detail and have already renamed across releases.
 st.markdown(
-    f"<style>.st-key-navbtn_{st.session_state.page} button {{ background:var(--secondary-container) !important; "
-    f"color:var(--on-secondary-container) !important; font-weight:600 !important; }}</style>",
+    f"<style>.st-key-navbtn_{st.session_state.page} button {{ "
+    f"color:var(--text) !important; border-left-color:var(--primary) !important; "
+    f"font-weight:600 !important; }}</style>",
     unsafe_allow_html=True,
 )
 
 _PAGES = {
+    "overview": pages.render_landing,
     "dashboard": pages.render_dashboard,
     "capture": pages.render_capture,
-    "evidence": pages.render_evidence,
-    "risk": pages.render_risk,
-    "investigation": pages.render_investigation,
+    "case": pages.render_case,
+    "audit": pages.render_audit,
 }
-_PAGES.get(st.session_state.page, pages.render_dashboard)()
+_PAGES.get(st.session_state.page, pages.render_landing)()
