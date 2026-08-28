@@ -34,53 +34,79 @@ from ui import actions, screens
 _LIGHT_CLASS = {"GREEN": "green", "AMBER": "amber", "RED": "red"}
 
 
+def render_landing() -> None:
+    """The front page: what this project is, before any live data.
+
+    Deliberately the app's default screen. Opening straight into the
+    operating console gave a first-time viewer (a judge, a reviewer) no
+    way to learn the thesis before being shown a table of case IDs. This
+    page is read once; every other screen is operated repeatedly.
+    """
+    st.markdown(screens.hero_html(), unsafe_allow_html=True)
+
+    with st.container():
+        st.markdown("<div class='bsx-tier-head'>The trust ladder</div>", unsafe_allow_html=True)
+        st.caption("Four tiers, evaluated in this order. A tier's authority is fixed by the "
+                    "architecture, not by how confident a model happens to be.")
+        st.write("")
+        st.markdown(screens.tier_grid_html(), unsafe_allow_html=True)
+
+    st.write("")
+    with st.container():
+        st.markdown("<div class='bsx-tier-head'>Start here</div>", unsafe_allow_html=True)
+        st.caption("Six controlled attack vectors are wired to the real pipeline. Each one forges a "
+                    "document, screens it end to end, and writes a hash-chained case.")
+        st.write("")
+        c1, c2, c3 = st.columns([1, 1, 2])
+        with c1:
+            if st.button("Open screening command", type="primary", use_container_width=True,
+                          icon=":material/dashboard:", key="landing_to_dash"):
+                st.session_state.page = "dashboard"
+                st.rerun()
+        with c2:
+            if st.button("Screen a document", use_container_width=True,
+                          icon=":material/person_search:", key="landing_to_capture"):
+                st.session_state.page = "capture"
+                st.rerun()
+
+    st.write("")
+    with st.container():
+        st.markdown("<div class='bsx-tier-head'>What this is not</div>", unsafe_allow_html=True)
+        st.write("")
+        st.markdown(screens.honesty_html(), unsafe_allow_html=True)
+
+
 def render_dashboard() -> None:
     chain_ok, _ = ledger_module.verify_chain()
     records = ledger_module.read_all()
 
-    col_title, col_cta = st.columns([3, 1])
-    with col_title:
-        st.markdown(screens.topbar_html(
-            "Border Screening Command",
-            "Identity verification and document integrity monitoring.",
-            chain_ok=chain_ok), unsafe_allow_html=True)
-    with col_cta:
-        st.write("")
-        st.caption("Screening Modes")
-        cta_a, cta_b = st.columns(2)
-        with cta_a:
-            if st.button("Demo Document", icon=":material/badge:", use_container_width=True, key="dash_demo_mode"):
-                st.session_state.page = "capture"
-                st.session_state.screening_mode_radio = "Demo Document"
-                st.rerun()
-        with cta_b:
-            if st.button("Real Document", icon=":material/upload_file:", use_container_width=True, key="dash_real_mode"):
-                st.session_state.page = "capture"
-                st.session_state.screening_mode_radio = "Real Document"
-                st.rerun()
+    st.markdown(screens.topbar_html(
+        "Screening command",
+        "Every case below ran through the full Trust Ladder against a real generated document. "
+        "Nothing on this screen is staged.",
+        eyebrow="PS 26188 · Ministry of Home Affairs · Sashastra Seema Bal",
+        chain_ok=chain_ok), unsafe_allow_html=True)
 
     high_review = sum(1 for r in records if r.get("band") in ("HIGH", "CRITICAL"))
     critical = sum(1 for r in records if r.get("band") == "CRITICAL")
-    c1, c2, c3 = st.columns(3)
-    with c1:
-        st.markdown(screens.stat_card_html("Active Cases", str(len(records)), "logged this session"),
-                     unsafe_allow_html=True)
-    with c2:
-        st.markdown(screens.stat_card_html("Requires Review", str(high_review), f"{critical} critical",
-                                             tone="red" if high_review else ""), unsafe_allow_html=True)
-    with c3:
-        st.markdown(screens.system_status_card_html(pki_ok=actions.pki_loaded(), chain_ok=chain_ok),
-                     unsafe_allow_html=True)
+    st.markdown(screens.metric_strip_html([
+        screens.metric_cell_html("Cases logged", str(len(records)), "this session"),
+        screens.metric_cell_html("Requires review", str(high_review), f"{critical} critical",
+                                   tone="red" if high_review else ""),
+        screens.status_cell_html("System status", [(actions.pki_loaded(), "Signing PKI"),
+                                                     (chain_ok, "Ledger chain")]),
+    ]), unsafe_allow_html=True)
 
     st.write("")
-    with st.container(border=True, key="attack_wall_card"):
+    with st.container(key="attack_wall_card"):
         st.markdown(
-            "<div style='display:flex;justify-content:space-between;align-items:center;'>"
-            "<span class='bsx-tier-head' style='margin-top:0;border-bottom:none;'>Controlled Attack Simulation</span>"
-            "<span style='font-family:var(--font-mono);font-size:0.62rem;color:var(--text-3);"
-            "border:1px solid var(--line);border-radius:2px;padding:0.15rem 0.5rem;'>DEMO ENVIRONMENT</span>"
-            "</div>", unsafe_allow_html=True)
-        st.caption("Select an attack vector to run it through the full Trust Ladder pipeline and log a real case.")
+            "<div class='bsx-tier-head'>Controlled attack simulation "
+            "<span style='font-family:var(--font-mono);font-size:0.74rem;color:var(--text-3);"
+            "border:1px solid var(--line);border-radius:2px;padding:0.2rem 0.5rem;letter-spacing:0.12em;'>"
+            "DEMO ENVIRONMENT</span></div>", unsafe_allow_html=True)
+        st.caption("Each button forges a real document, runs the full pipeline, and writes a hash-chained case. "
+                    "Hover colour previews the severity that vector should produce.")
+        st.write("")
         cols = st.columns(6)
         specs = [
             ("atk_genuine", "GENUINE", "verified", None, "The untouched synthetic document. Every tier should pass."),
@@ -110,22 +136,21 @@ def render_dashboard() -> None:
                             actions.break_signature_attack()
                         else:
                             actions.run_and_log(actions.ATTACKS[code], code)
-                        st.session_state.page = "evidence"
+                        st.session_state.page = "case"
                         st.rerun()
 
     st.write("")
-    with st.container(border=True):
-        st.markdown(
-            "<div style='display:flex;justify-content:space-between;align-items:center;'>"
-            "<span class='bsx-tier-head' style='margin-top:0;border-bottom:none;'>Recent Cases</span></div>",
-            unsafe_allow_html=True)
-        st.markdown(screens.recent_cases_table_html(records), unsafe_allow_html=True)
+    with st.container():
+        st.markdown("<div class='bsx-tier-head'>Recent cases</div>", unsafe_allow_html=True)
+        st.markdown("<div class='bsx-scroll-x'>" + screens.recent_cases_table_html(records) + "</div>",
+                     unsafe_allow_html=True)
 
 
 def render_capture() -> None:
     chain_ok, _ = ledger_module.verify_chain()
-    st.markdown(screens.topbar_html("New Screening", "Present a document and, optionally, a live face capture.",
-                                     chain_ok=chain_ok), unsafe_allow_html=True)
+    st.markdown(screens.topbar_html(
+        "New screening", "Present a document and, optionally, the face of the person carrying it.",
+        eyebrow="Intake", chain_ok=chain_ok), unsafe_allow_html=True)
 
     # index=0 only seeds the very first render; the dashboard's mode buttons
     # (render_dashboard) set st.session_state.screening_mode_radio directly
@@ -146,12 +171,14 @@ def render_capture() -> None:
     )
     col_doc, col_face = st.columns(2, gap="large")
     with col_doc:
-        with st.container(border=True):
-            st.markdown("<div class='bsx-tier-head' style='margin-top:0;'>Document Capture</div>", unsafe_allow_html=True)
+        with st.container():
+            st.markdown(screens.step_head_html(1, "Document", "active"), unsafe_allow_html=True)
             uploaded_doc = st.file_uploader("Upload an edited UTO document (PNG, 1000×700)", type=["png"])
     with col_face:
-        with st.container(border=True):
-            st.markdown("<div class='bsx-tier-head' style='margin-top:0;'>Live Identity Capture</div>", unsafe_allow_html=True)
+        with st.container():
+            st.markdown(screens.step_head_html(
+                2, "Live identity — optional",
+                "active" if uploaded_doc is not None else ""), unsafe_allow_html=True)
             live_capture = st.camera_input("Live face capture (optional -- for face verification)")
             if live_capture is None:
                 live_capture = st.file_uploader("...or upload a face photo instead", type=["png", "jpg", "jpeg"],
@@ -159,13 +186,12 @@ def render_capture() -> None:
 
     doc_ok, face_present = uploaded_doc is not None, live_capture is not None
     st.markdown(
-        "<div class='bsx-card' style='margin-top:0.8rem;'><div class='bsx-card-body' "
-        "style='display:flex;gap:1.5rem;flex-wrap:wrap;'>"
+        "<div class='bsx-pill-row' style='border-top:1px solid var(--line);padding-top:1rem;margin-top:1.4rem;'>"
         f"<span class='bsx-status-dot'><span class='dot {'ok' if doc_ok else 'bad'}'></span>"
-        f"Document: {uploaded_doc.name if doc_ok else 'None'}</span>"
+        f"Document: {uploaded_doc.name if doc_ok else 'none'}</span>"
         f"<span class='bsx-status-dot'><span class='dot {'ok' if face_present else 'bad'}'></span>"
         f"Live capture: {'provided' if face_present else 'none'}</span>"
-        "</div></div>", unsafe_allow_html=True)
+        "</div>", unsafe_allow_html=True)
 
     if doc_ok:
         doc_img = Image.open(uploaded_doc).convert("RGB")
@@ -184,7 +210,7 @@ def render_capture() -> None:
             actions.run_and_log(custom_path, "CUSTOM", extra_signals=[face_signal] if face_signal else None)
             if live_bgr is not None:
                 st.session_state.last_live_face_bgr = live_bgr
-            st.session_state.page = "evidence"
+            st.session_state.page = "case"
             st.rerun()
 
 
@@ -205,8 +231,8 @@ def _render_real_document_capture() -> None:
     )
     col_doc, col_face = st.columns(2, gap="large")
     with col_doc:
-        with st.container(border=True):
-            st.markdown("<div class='bsx-tier-head' style='margin-top:0;'>Step 1 — Document</div>", unsafe_allow_html=True)
+        with st.container():
+            st.markdown(screens.step_head_html(1, "Document", "active"), unsafe_allow_html=True)
             doc_file = st.file_uploader("Upload a document (PNG, JPG, JPEG, PDF)", type=["png", "jpg", "jpeg", "pdf"],
                                           key="realdoc_upload")
             manual_bbox = None
@@ -234,8 +260,10 @@ def _render_real_document_capture() -> None:
                         else:
                             st.warning("x1/y1 must be greater than x0/y0.")
     with col_face:
-        with st.container(border=True):
-            st.markdown("<div class='bsx-tier-head' style='margin-top:0;'>Step 2 — Person Verification Photo</div>", unsafe_allow_html=True)
+        with st.container():
+            st.markdown(screens.step_head_html(
+                2, "Person verification photo",
+                "active" if doc_file is not None else ""), unsafe_allow_html=True)
             person_capture = st.camera_input("Live camera", key="realdoc_camera")
             if person_capture is None:
                 person_capture = st.file_uploader("...or upload a face photo", type=["png", "jpg", "jpeg"],
@@ -263,19 +291,19 @@ def _render_real_document_capture() -> None:
                  f"<p style='color:var(--text-3);font-size:0.8rem;margin-top:-0.5rem;'>{ctx['doc_type_note']}</p>",
                  unsafe_allow_html=True)
 
-    with st.container(border=True):
-        st.markdown("<div class='bsx-tier-head' style='margin-top:0;'>Document Capabilities</div>", unsafe_allow_html=True)
+    with st.container():
+        st.markdown("<div class='bsx-tier-head'>Document Capabilities</div>", unsafe_allow_html=True)
         st.markdown(screens.realdoc_capability_panel_html(ctx["capabilities"]), unsafe_allow_html=True)
 
     col_a, col_b = st.columns([1, 1], gap="large")
     with col_a:
-        with st.container(border=True):
-            st.markdown("<div class='bsx-tier-head' style='margin-top:0;'>Verification Ladder</div>", unsafe_allow_html=True)
+        with st.container():
+            st.markdown("<div class='bsx-tier-head'>Verification Ladder</div>", unsafe_allow_html=True)
             st.markdown(screens.realdoc_ladder_html(verdict.steps), unsafe_allow_html=True)
         if ctx["portrait_bbox"] is not None:
-            with st.container(border=True):
+            with st.container():
                 title = "Biometric Comparison" + (" (manually specified region)" if ctx.get("portrait_manual") else "")
-                st.markdown(f"<div class='bsx-tier-head' style='margin-top:0;'>{title}</div>", unsafe_allow_html=True)
+                st.markdown(f"<div class='bsx-tier-head'>{title}</div>", unsafe_allow_html=True)
                 x0, y0, x1, y1 = ctx["portrait_bbox"]
                 cp1, cp2 = st.columns(2)
                 with cp1:
@@ -292,15 +320,15 @@ def _render_real_document_capture() -> None:
                     st.caption(f"Similarity {face_sig.detail['similarity']:.3f} "
                                 f"(threshold {face_sig.detail['threshold']:.3f}) — {face_sig.message}")
     with col_b:
-        with st.container(border=True):
-            st.markdown("<div class='bsx-tier-head' style='margin-top:0;'>OCR / Field Extraction</div>", unsafe_allow_html=True)
+        with st.container():
+            st.markdown("<div class='bsx-tier-head'>OCR / Field Extraction</div>", unsafe_allow_html=True)
             if ctx["capabilities"]["OCR"]:
                 st.markdown(screens.realdoc_fields_table_html(ctx["fields"]), unsafe_allow_html=True)
             else:
                 st.info("No readable text detected on this document.")
         if ctx["mrz"].detected:
-            with st.container(border=True):
-                st.markdown("<div class='bsx-tier-head' style='margin-top:0;'>MRZ</div>", unsafe_allow_html=True)
+            with st.container():
+                st.markdown("<div class='bsx-tier-head'>MRZ</div>", unsafe_allow_html=True)
                 if ctx["mrz"].status == "INSUFFICIENT_QUALITY":
                     st.warning("An MRZ-shaped region was found but couldn't be read with enough confidence "
                                 "to trust (scan resolution/skew) — not treated as a checksum failure.")
@@ -313,48 +341,64 @@ def _render_real_document_capture() -> None:
                         f"{c.field.upper()}: {'OK' if c.ok else 'FAIL'}</span>" for c in ctx["mrz"].checks)
                     st.markdown(chips, unsafe_allow_html=True)
 
-    with st.container(border=True):
-        st.markdown("<div class='bsx-tier-head' style='margin-top:0;'>Detected Evidence</div>", unsafe_allow_html=True)
+    with st.container():
+        st.markdown("<div class='bsx-tier-head'>Detected Evidence</div>", unsafe_allow_html=True)
         st.markdown(screens.realdoc_evidence_html(verdict.signals), unsafe_allow_html=True)
 
     conf_col, _ = st.columns([1, 2])
     with conf_col:
-        st.markdown(screens.realdoc_confidence_html(verdict.steps), unsafe_allow_html=True)
+        st.markdown(screens.realdoc_confidence_dial_html(verdict.steps), unsafe_allow_html=True)
 
     st.markdown(screens.realdoc_verdict_card_html(verdict), unsafe_allow_html=True)
 
 
-def render_evidence() -> None:
+def render_case() -> None:
+    """ONE case, ONE page.
+
+    This screen replaces the previous Evidence Analysis / Risk Decision /
+    Investigation trio. Those split a single case across three navigation
+    destinations, so answering "what is wrong with this document" meant
+    clicking between pages and holding the verdict in your head -- and, as
+    reported during real-document testing, they silently showed a stale
+    unrelated case when the officer was working in Real Document mode.
+    A case is one object; it now reads top to bottom as one document:
+    verdict, then the ladder that produced it, then the evidence behind
+    each finding.
+    """
     actions.ensure_active_case()
     verdict, ctx = st.session_state.last_verdict, st.session_state.last_ctx
     path, case_id = st.session_state.active_path, st.session_state.case_id
     chain_ok, _ = ledger_module.verify_chain()
+    policy = load_policy()
 
-    st.markdown(screens.topbar_html("Evidence Analysis", case_chip=f"CASE-ID: {case_id}", chain_ok=chain_ok),
-                unsafe_allow_html=True)
+    st.markdown(screens.topbar_html(
+        "Case file", eyebrow=f"Case {case_id} · {Path(path).name}",
+        case_chip=f"CASE-ID: {case_id}", chain_ok=chain_ok), unsafe_allow_html=True)
 
-    col_doc, col_right = st.columns([1.3, 1], gap="large")
+    # 1. THE VERDICT -- the answer first, before any of the evidence that
+    #    produced it. An officer reads this and nothing else in the common case.
+    st.markdown(screens.verdict_hero_html(verdict, policy["risk_bands"]), unsafe_allow_html=True)
+    note = screens.crypto_note(verdict)
+    if note:
+        st.markdown(note, unsafe_allow_html=True)
+
+    st.write("")
+    col_doc, col_right = st.columns([1.15, 1], gap="large")
+
+    # 2. THE EVIDENCE -- the document as presented, flagged.
     with col_doc:
-        with st.container(border=True):
-            st.markdown("<div class='bsx-tier-head' style='margin-top:0;'>Document Evidence</div>", unsafe_allow_html=True)
+        with st.container():
+            st.markdown("<div class='bsx-tier-head'>Document as presented</div>", unsafe_allow_html=True)
             has_findings = any(s.severity == Severity.FAIL for s in verdict.signals)
             if has_findings:
-                st.image(overlay(str(path), verdict), caption=f"{Path(path).name} — flagged regions boxed",
-                           use_container_width=True)
+                st.image(overlay(str(path), verdict), caption="Flagged regions boxed", use_container_width=True)
             else:
                 st.image(str(path), caption=Path(path).name, use_container_width=True)
 
-    with col_right:
-        with st.container(border=True):
-            st.markdown("<div class='bsx-tier-head' style='margin-top:0;'>Verification Sequence</div>", unsafe_allow_html=True)
-            st.markdown(screens.verification_sequence_html(verdict), unsafe_allow_html=True)
-
-        st.markdown(screens.finding_cards_html(verdict), unsafe_allow_html=True)
-
         portrait_checks = {"photo_region_anomaly", "manifest_match", "face_verification"}
         if any(s.severity == Severity.FAIL and s.check in portrait_checks for s in verdict.signals):
-            with st.container(border=True):
-                st.markdown("<div class='bsx-tier-head' style='margin-top:0;'>Portrait Comparison</div>", unsafe_allow_html=True)
+            with st.container():
+                st.markdown("<div class='bsx-tier-head'>Portrait comparison</div>", unsafe_allow_html=True)
                 cp1, cp2 = st.columns(2)
                 x0, y0, x1, y1 = PORTRAIT_BBOX
                 with cp1:
@@ -368,126 +412,96 @@ def render_evidence() -> None:
                     else:
                         st.info("No live capture on file for this case.")
 
-        st.markdown(screens.verdict_footer_html(verdict), unsafe_allow_html=True)
-        note = screens.crypto_note(verdict)
-        if note:
-            st.markdown(note, unsafe_allow_html=True)
+    # 3. THE REASONING -- which tier decided, and why.
+    with col_right:
+        with st.container():
+            st.markdown("<div class='bsx-tier-head'>Trust ladder</div>", unsafe_allow_html=True)
+            st.markdown(screens.verification_sequence_html(verdict), unsafe_allow_html=True)
+
+        if any(s.severity == Severity.FAIL for s in verdict.signals):
+            with st.container():
+                st.markdown("<div class='bsx-tier-head'>Findings</div>", unsafe_allow_html=True)
+                st.markdown(screens.finding_cards_html(verdict), unsafe_allow_html=True)
+
+            with st.container():
+                st.markdown("<div class='bsx-tier-head'>Score contributions</div>", unsafe_allow_html=True)
+                st.markdown(screens.risk_contributions_html(verdict.signals), unsafe_allow_html=True)
+
+        with st.container():
+            st.markdown("<div class='bsx-tier-head'>Machine-readable zone</div>", unsafe_allow_html=True)
+            st.code(f"{ctx['line1']}\n{ctx['line2']}", language=None)
+            mrz_checks = [s for s in verdict.signals if s.check.startswith("mrz_checksum_")]
+            st.markdown("".join(
+                f"<span class='bsx-pill {'green' if s.severity == Severity.PASS else 'red'}' "
+                f"style='margin-right:0.35rem;margin-top:0.4rem;display:inline-block;'>"
+                f"{s.check[len('mrz_checksum_'):].replace('_', ' ')}</span>"
+                for s in mrz_checks), unsafe_allow_html=True)
+
+        fields = ctx["fields"]
+        with st.container():
+            st.markdown("<div class='bsx-tier-head'>Extracted identity</div>", unsafe_allow_html=True)
+            st.markdown(
+                "<div class='bsx-datalist'>"
+                f"<div class='bsx-datarow'><span class='bsx-field-name'>Document no</span>"
+                f"<span class='bsx-field-value'>{fields.passport_number}</span></div>"
+                f"<div class='bsx-datarow'><span class='bsx-field-name'>Nationality</span>"
+                f"<span class='bsx-field-value'>{fields.nationality}</span></div>"
+                f"<div class='bsx-datarow'><span class='bsx-field-name'>Expiry</span>"
+                f"<span class='bsx-field-value'>{fields.date_of_expiry}</span></div>"
+                "</div>", unsafe_allow_html=True)
 
 
-def render_risk() -> None:
-    actions.ensure_active_case()
-    verdict, case_id = st.session_state.last_verdict, st.session_state.case_id
-    chain_ok, _ = ledger_module.verify_chain()
-    policy = load_policy()
-    light = traffic_light(verdict.band)
-    cls = _LIGHT_CLASS[light]
-
-    st.markdown(screens.topbar_html("Risk Decision Summary", case_chip=f"CASE-ID: {case_id}", chain_ok=chain_ok),
-                unsafe_allow_html=True)
-
-    col_main, col_side = st.columns([2, 1], gap="large")
-    with col_main:
-        with st.container(border=True):
-            c1, c2 = st.columns([1, 1.4])
-            with c1:
-                st.markdown(screens.risk_ring_svg(verdict.score, verdict.band), unsafe_allow_html=True)
-                st.markdown(f"<div style='text-align:center;margin-top:0.5rem;'>"
-                             f"<span class='bsx-pill {cls}'>{verdict.band.value} RISK</span></div>",
-                             unsafe_allow_html=True)
-            with c2:
-                override_note = (" Forced by cryptographic proof of tampering — no forensic or biometric "
-                                   "model was consulted for this decision." if verdict.crypto_override else "")
-                st.markdown(
-                    f"<div style='font-family:var(--font-head);font-weight:700;font-size:1.35rem;"
-                    f"color:var(--{cls});text-transform:uppercase;margin-bottom:0.6rem;letter-spacing:-0.01em;'>"
-                    f"{verdict.action}</div>"
-                    f"<p style='color:var(--text-2);'>Fused from {len(verdict.signals)} signals across the Trust "
-                    f"Ladder's tiers.{override_note}</p>", unsafe_allow_html=True)
-            st.markdown(screens.risk_distribution_scale_html(verdict.score, policy["risk_bands"]),
-                         unsafe_allow_html=True)
-    with col_side:
-        with st.container(border=True):
-            st.markdown("<div class='bsx-tier-head' style='margin-top:0;'>Risk Contributions</div>", unsafe_allow_html=True)
-            st.markdown(screens.risk_contributions_html(verdict.signals), unsafe_allow_html=True)
-
-
-def render_investigation() -> None:
+def render_audit() -> None:
+    """The ledger across ALL cases -- deliberately a separate destination
+    from the case file, because its subject is the audit chain itself,
+    not any one screening."""
     records = ledger_module.read_all()
     ok, broken_at = ledger_module.verify_chain()
 
-    st.markdown(screens.topbar_html("Investigation", "Audit trail and case review.", chain_ok=ok),
-                unsafe_allow_html=True)
+    st.markdown(screens.topbar_html(
+        "Audit trail",
+        "Every screening appends a hash-chained record. Editing any past record in place breaks the "
+        "chain at exactly that index and the verifier names it.",
+        eyebrow="Tamper-evident ledger", chain_ok=ok), unsafe_allow_html=True)
 
-    col_left, col_right = st.columns([2, 1], gap="large")
+    col_left, col_right = st.columns([1.3, 1], gap="large")
     with col_left:
-        if "last_verdict" in st.session_state:
-            verdict, ctx = st.session_state.last_verdict, st.session_state.last_ctx
-            fields = ctx["fields"]
-            with st.container(border=True):
-                st.markdown("<div class='bsx-tier-head' style='margin-top:0;'>Case Summary</div>", unsafe_allow_html=True)
-                cs1, cs2 = st.columns(2)
-                with cs1:
-                    st.markdown(
-                        f"<div style='font-family:var(--font-mono);font-size:0.83rem;color:var(--text-2);'>"
-                        f"Doc No: {fields.passport_number}<br>Nationality: {fields.nationality}<br>"
-                        f"Expiry: {fields.date_of_expiry}</div>", unsafe_allow_html=True)
-                with cs2:
-                    n_fails = sum(1 for s in verdict.signals if s.severity == Severity.FAIL)
-                    st.markdown(
-                        f"<div style='font-size:0.85rem;color:var(--text);'>{actions.top_finding(verdict)}</div>"
-                        f"<div style='font-size:0.75rem;color:var(--text-3);margin-top:0.3rem;'>"
-                        f"{n_fails} finding(s) across the Trust Ladder.</div>", unsafe_allow_html=True)
-
-            with st.container(border=True):
-                st.markdown("<div class='bsx-tier-head' style='margin-top:0;'>Decoded MRZ</div>", unsafe_allow_html=True)
-                st.code(f"{ctx['line1']}\n{ctx['line2']}", language=None)
-                mrz_checks = [s for s in verdict.signals if s.check.startswith("mrz_checksum_")]
-                chips = "".join(
-                    f"<span class='bsx-pill {'green' if s.severity == Severity.PASS else 'red'}' "
-                    f"style='margin-right:0.4rem;margin-top:0.4rem;display:inline-block;'>"
-                    f"{s.check[len('mrz_checksum_'):].upper()}: {s.severity.value.upper()}</span>"
-                    for s in mrz_checks
-                )
-                st.markdown(chips, unsafe_allow_html=True)
-
-            with st.container(border=True):
-                st.markdown("<div class='bsx-tier-head' style='margin-top:0;'>Portrait Evidence</div>", unsafe_allow_html=True)
-                pc1, pc2 = st.columns(2)
-                x0, y0, x1, y1 = PORTRAIT_BBOX
-                with pc1:
-                    st.image(ctx["gray"][y0:y1, x0:x1], caption="Document portrait", channels="GRAY",
-                               use_container_width=True)
-                with pc2:
-                    live = st.session_state.get("last_live_face_bgr")
-                    if live is not None:
-                        st.image(cv2.cvtColor(live, cv2.COLOR_BGR2RGB), caption="Live capture (this session)",
-                                   use_container_width=True)
-                    else:
-                        st.info("No live capture on file for this case.")
-        else:
-            st.info("No active case yet -- run an Attack Wall scenario or a new screening first.")
+        with st.container():
+            st.markdown("<div class='bsx-tier-head'>Chain events</div>", unsafe_allow_html=True)
+            st.markdown(screens.audit_timeline_html(records, limit=12), unsafe_allow_html=True)
 
     with col_right:
-        with st.container(border=True):
-            st.markdown("<div class='bsx-tier-head' style='margin-top:0;'>Integrity Status</div>", unsafe_allow_html=True)
-            pill_cls, pill_txt = ("ok", "AUDIT LEDGER — INTACT") if ok else ("broken", f"CHAIN BROKEN AT RECORD {broken_at}")
+        with st.container():
+            st.markdown("<div class='bsx-tier-head'>Integrity status</div>", unsafe_allow_html=True)
+            pill_cls, pill_txt = ("ok", "Audit ledger — intact") if ok else ("broken", f"Chain broken at record {broken_at}")
             st.markdown(f"<span class='bsx-chain-pill {pill_cls}'>{pill_txt}</span>", unsafe_allow_html=True)
             st.write("")
-            if st.button("Verify chain", icon=":material/verified_user:", use_container_width=True, key="verify_chain_btn"):
+            if st.button("Re-verify chain", icon=":material/verified_user:", use_container_width=True,
+                          key="verify_chain_btn"):
                 st.rerun()
 
-        with st.container(border=True):
-            st.markdown("<div class='bsx-tier-head' style='margin-top:0;'>Audit Trail</div>", unsafe_allow_html=True)
-            st.markdown(screens.audit_timeline_html(records), unsafe_allow_html=True)
-
-        with st.container(border=True):
-            st.markdown("<div class='bsx-tier-head' style='margin-top:0;'>Demo Utilities</div>", unsafe_allow_html=True)
-            st.caption("Demonstrate tamper-evidence: rewrite a past verdict by hand, then re-verify the chain.")
+        with st.container():
+            st.markdown("<div class='bsx-tier-head'>Demo utilities</div>", unsafe_allow_html=True)
+            st.caption("Rewrite a past verdict by hand, then re-verify: the chain should name the broken record.")
             if st.button("Simulate tampering with a past case", use_container_width=True, key="tamper_btn"):
                 if not actions.simulate_tamper():
                     st.warning("Screen at least one document first.")
                 else:
                     st.rerun()
-            if st.button("Reset ledger (demo utility)", use_container_width=True, key="reset_ledger_btn"):
+            if st.button("Reset ledger", use_container_width=True, key="reset_ledger_btn"):
                 actions.reset_ledger()
                 st.rerun()
+
+
+# Back-compat: older session_state may still hold one of the three retired
+# page ids. app.py maps them onto the merged screens above.
+def render_evidence() -> None:
+    render_case()
+
+
+def render_risk() -> None:
+    render_case()
+
+
+def render_investigation() -> None:
+    render_audit()
