@@ -24,6 +24,8 @@ from core.crypto import ledger as ledger_module
 from core.face.pipeline import verify as face_verify
 from core.fields import PORTRAIT_BBOX
 from core.forensics.heatmap import overlay
+from core.realdoc import loader
+from core.realdoc.pipeline import screen_real_document
 from core.risk import traffic_light
 from core.rules.engine import load_policy
 from core.types import Severity
@@ -44,10 +46,18 @@ def render_dashboard() -> None:
             chain_ok=chain_ok), unsafe_allow_html=True)
     with col_cta:
         st.write("")
-        if st.button("Start New Screening", type="primary", icon=":material/play_arrow:",
-                      use_container_width=True, key="dash_new_screening"):
-            st.session_state.page = "capture"
-            st.rerun()
+        st.caption("Screening Modes")
+        cta_a, cta_b = st.columns(2)
+        with cta_a:
+            if st.button("Demo Document", icon=":material/badge:", use_container_width=True, key="dash_demo_mode"):
+                st.session_state.page = "capture"
+                st.session_state.screening_mode_radio = "Demo Document"
+                st.rerun()
+        with cta_b:
+            if st.button("Real Document", icon=":material/upload_file:", use_container_width=True, key="dash_real_mode"):
+                st.session_state.page = "capture"
+                st.session_state.screening_mode_radio = "Real Document"
+                st.rerun()
 
     high_review = sum(1 for r in records if r.get("band") in ("HIGH", "CRITICAL"))
     critical = sum(1 for r in records if r.get("band") == "CRITICAL")
@@ -116,10 +126,23 @@ def render_capture() -> None:
     chain_ok, _ = ledger_module.verify_chain()
     st.markdown(screens.topbar_html("New Screening", "Present a document and, optionally, a live face capture.",
                                      chain_ok=chain_ok), unsafe_allow_html=True)
+
+    # index=0 only seeds the very first render; the dashboard's mode buttons
+    # (render_dashboard) set st.session_state.screening_mode_radio directly
+    # before rerunning, which Streamlit adopts over `index` on every render
+    # after the key already exists.
+    mode = st.radio("Screening mode", ["Demo Document", "Real Document"], index=0,
+                     horizontal=True, label_visibility="collapsed", key="screening_mode_radio")
+
+    if mode == "Real Document":
+        _render_real_document_capture()
+        return
+
     st.caption(
         "This pipeline reads the UTO demo template's exact 1000×700 layout, not arbitrary real-world "
         "documents -- general document detection/OCR is out of scope for this prototype. Edit one of the "
-        "Attack Wall PNGs yourself (crop a field, paste a different photo) and upload it here."
+        "Attack Wall PNGs yourself (crop a field, paste a different photo) and upload it here, or switch to "
+        "Real Document above for an arbitrary upload."
     )
     col_doc, col_face = st.columns(2, gap="large")
     with col_doc:
@@ -163,6 +186,142 @@ def render_capture() -> None:
                 st.session_state.last_live_face_bgr = live_bgr
             st.session_state.page = "evidence"
             st.rerun()
+
+
+def _render_real_document_capture() -> None:
+    """Mode B: an arbitrary uploaded document, screened by
+    core.realdoc.pipeline -- capability-aware, never assumes the UTO
+    template. Nothing here is written to disk: uploads are decoded straight
+    to in-memory arrays (same privacy stance as actions.cv2_bgr_from_upload
+    for live captures) and the result lives only in st.session_state for
+    this session, never appended to the demo ledger -- see PLAN_realdoc.md
+    for why real, potentially personal documents are kept out of the
+    hash-chained audit trail that Mode A's synthetic cases use."""
+    st.caption(
+        "Upload any identity document or educational record. Every check below only runs when the "
+        "document actually supports it -- a marksheet with no photo will correctly show biometric "
+        "comparison as NOT APPLICABLE rather than a fabricated result. PDF is rendered from its first "
+        "page only (core/realdoc/loader.py); a multi-page scan needs its relevant page split out first."
+    )
+    col_doc, col_face = st.columns(2, gap="large")
+    with col_doc:
+        with st.container(border=True):
+            st.markdown("<div class='bsx-tier-head' style='margin-top:0;'>Step 1 — Document</div>", unsafe_allow_html=True)
+            doc_file = st.file_uploader("Upload a document (PNG, JPG, JPEG, PDF)", type=["png", "jpg", "jpeg", "pdf"],
+                                          key="realdoc_upload")
+            manual_bbox = None
+            if doc_file is not None:
+                doc_bgr = loader.load_bgr(doc_file.getvalue(), filename_hint=doc_file.name)
+                h, w = doc_bgr.shape[:2]
+                st.image(cv2.cvtColor(doc_bgr, cv2.COLOR_BGR2RGB), use_container_width=True)
+                st.caption(f"{w}×{h}px · {doc_file.type or 'unknown type'} · original preserved, not resized")
+                with st.expander("Portrait detection uncertain? Manually specify the region"):
+                    st.caption("Only needed if automatic detection misses the portrait or picks the wrong "
+                                "region -- this changes WHERE forensics/face comparison look, it can't make "
+                                "a genuinely blurry printed photo sharper.")
+                    use_manual = st.checkbox("Use a manually specified region instead of auto-detection",
+                                               key="realdoc_manual_toggle")
+                    if use_manual:
+                        mc1, mc2, mc3, mc4 = st.columns(4)
+                        x0 = mc1.number_input("x0", 0, w, 0, key="realdoc_mx0")
+                        y0 = mc2.number_input("y0", 0, h, 0, key="realdoc_my0")
+                        x1 = mc3.number_input("x1", 0, w, w, key="realdoc_mx1")
+                        y1 = mc4.number_input("y1", 0, h, h, key="realdoc_my1")
+                        if x1 > x0 and y1 > y0:
+                            manual_bbox = (int(x0), int(y0), int(x1), int(y1))
+                            st.image(cv2.cvtColor(doc_bgr[int(y0):int(y1), int(x0):int(x1)], cv2.COLOR_BGR2RGB),
+                                       caption="Preview of the manually selected region", width=200)
+                        else:
+                            st.warning("x1/y1 must be greater than x0/y0.")
+    with col_face:
+        with st.container(border=True):
+            st.markdown("<div class='bsx-tier-head' style='margin-top:0;'>Step 2 — Person Verification Photo</div>", unsafe_allow_html=True)
+            person_capture = st.camera_input("Live camera", key="realdoc_camera")
+            if person_capture is None:
+                person_capture = st.file_uploader("...or upload a face photo", type=["png", "jpg", "jpeg"],
+                                                    key="realdoc_face_upload")
+            person_bgr = actions.cv2_bgr_from_upload(person_capture) if person_capture is not None else None
+            if person_bgr is not None:
+                st.image(cv2.cvtColor(person_bgr, cv2.COLOR_BGR2RGB), use_container_width=True, width=220)
+
+    if doc_file is None:
+        return
+    if st.button("Screen this document", type="primary", icon=":material/play_arrow:", key="realdoc_screen_btn"):
+        with st.spinner("Running OCR, classification, forensics and biometric comparison..."):
+            verdict, ctx = screen_real_document(doc_bgr, person_bgr=person_bgr, manual_portrait_bbox=manual_bbox)
+        st.session_state.realdoc_verdict = verdict
+        st.session_state.realdoc_ctx = ctx
+        st.session_state.realdoc_doc_bgr = doc_bgr
+        st.session_state.realdoc_person_bgr = person_bgr
+        st.rerun()
+
+    if "realdoc_verdict" not in st.session_state:
+        return
+    verdict, ctx = st.session_state.realdoc_verdict, st.session_state.realdoc_ctx
+    st.write("")
+    st.markdown(f"<div class='bsx-tier-head'>Result — {ctx['doc_type']}</div>"
+                 f"<p style='color:var(--text-3);font-size:0.8rem;margin-top:-0.5rem;'>{ctx['doc_type_note']}</p>",
+                 unsafe_allow_html=True)
+
+    with st.container(border=True):
+        st.markdown("<div class='bsx-tier-head' style='margin-top:0;'>Document Capabilities</div>", unsafe_allow_html=True)
+        st.markdown(screens.realdoc_capability_panel_html(ctx["capabilities"]), unsafe_allow_html=True)
+
+    col_a, col_b = st.columns([1, 1], gap="large")
+    with col_a:
+        with st.container(border=True):
+            st.markdown("<div class='bsx-tier-head' style='margin-top:0;'>Verification Ladder</div>", unsafe_allow_html=True)
+            st.markdown(screens.realdoc_ladder_html(verdict.steps), unsafe_allow_html=True)
+        if ctx["portrait_bbox"] is not None:
+            with st.container(border=True):
+                title = "Biometric Comparison" + (" (manually specified region)" if ctx.get("portrait_manual") else "")
+                st.markdown(f"<div class='bsx-tier-head' style='margin-top:0;'>{title}</div>", unsafe_allow_html=True)
+                x0, y0, x1, y1 = ctx["portrait_bbox"]
+                cp1, cp2 = st.columns(2)
+                with cp1:
+                    st.image(cv2.cvtColor(st.session_state.realdoc_doc_bgr[y0:y1, x0:x1], cv2.COLOR_BGR2RGB),
+                               caption="Document portrait", use_container_width=True)
+                with cp2:
+                    if st.session_state.realdoc_person_bgr is not None:
+                        st.image(cv2.cvtColor(st.session_state.realdoc_person_bgr, cv2.COLOR_BGR2RGB),
+                                   caption="Presented person", use_container_width=True)
+                    else:
+                        st.info("No person photo provided for this case.")
+                face_sig = next((s for s in verdict.signals if s.check == "face_verification"), None)
+                if face_sig and "similarity" in face_sig.detail:
+                    st.caption(f"Similarity {face_sig.detail['similarity']:.3f} "
+                                f"(threshold {face_sig.detail['threshold']:.3f}) — {face_sig.message}")
+    with col_b:
+        with st.container(border=True):
+            st.markdown("<div class='bsx-tier-head' style='margin-top:0;'>OCR / Field Extraction</div>", unsafe_allow_html=True)
+            if ctx["capabilities"]["OCR"]:
+                st.markdown(screens.realdoc_fields_table_html(ctx["fields"]), unsafe_allow_html=True)
+            else:
+                st.info("No readable text detected on this document.")
+        if ctx["mrz"].detected:
+            with st.container(border=True):
+                st.markdown("<div class='bsx-tier-head' style='margin-top:0;'>MRZ</div>", unsafe_allow_html=True)
+                if ctx["mrz"].status == "INSUFFICIENT_QUALITY":
+                    st.warning("An MRZ-shaped region was found but couldn't be read with enough confidence "
+                                "to trust (scan resolution/skew) — not treated as a checksum failure.")
+                else:
+                    label = "VALID" if ctx["mrz"].status == "DETECTED_VALID" else "INVALID"
+                    st.caption(f"DETECTED + {label}")
+                    st.code(f"{ctx['mrz'].line1}\n{ctx['mrz'].line2}", language=None)
+                    chips = "".join(
+                        f"<span class='bsx-pill {'green' if c.ok else 'red'}' style='margin-right:0.4rem;margin-top:0.4rem;display:inline-block;'>"
+                        f"{c.field.upper()}: {'OK' if c.ok else 'FAIL'}</span>" for c in ctx["mrz"].checks)
+                    st.markdown(chips, unsafe_allow_html=True)
+
+    with st.container(border=True):
+        st.markdown("<div class='bsx-tier-head' style='margin-top:0;'>Detected Evidence</div>", unsafe_allow_html=True)
+        st.markdown(screens.realdoc_evidence_html(verdict.signals), unsafe_allow_html=True)
+
+    conf_col, _ = st.columns([1, 2])
+    with conf_col:
+        st.markdown(screens.realdoc_confidence_html(verdict.steps), unsafe_allow_html=True)
+
+    st.markdown(screens.realdoc_verdict_card_html(verdict), unsafe_allow_html=True)
 
 
 def render_evidence() -> None:

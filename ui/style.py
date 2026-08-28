@@ -133,6 +133,7 @@ section[data-testid="stSidebar"] .stButton > button:focus:not(:active) { border-
 .bsx-status-dot .dot { width: 6px; height: 6px; border-radius: 50%; }
 .bsx-status-dot .dot.ok { background: var(--green); }
 .bsx-status-dot .dot.bad { background: var(--red); }
+.bsx-status-dot .dot.na { background: var(--text-3); }
 
 /* ---- attack wall ---- */
 .st-key-atk_dob button, .st-key-atk_photo button, .st-key-atk_sig button { transition: color .15s, border-color .15s; }
@@ -241,10 +242,27 @@ button[kind="primary"]:hover { filter: brightness(1.08); }
 .bsx-vseq-dot.pass { color: var(--text-2); border-color: var(--line); background: var(--surface-highest); }
 .bsx-vseq-dot.fail { color: var(--red); border-color: var(--red-dim); background: var(--red-bg); }
 .bsx-vseq-dot.na { color: var(--text-3); border-color: var(--line-soft); background: transparent; }
+.bsx-vseq-dot.review { color: var(--amber); border-color: var(--amber-dim); background: var(--amber-bg); }
 .bsx-vseq-label { flex:1; display:flex; justify-content:space-between; align-items:center; font-family: var(--font-body); font-size: 0.9rem; }
 .bsx-vseq-label .status { font-family: var(--font-mono); font-size: 0.72rem; text-transform:uppercase; }
 .bsx-vseq-row.fail .bsx-vseq-label { color: var(--red); font-weight:600; }
 .bsx-vseq-row.na .bsx-vseq-label { color: var(--text-3); }
+.bsx-vseq-row.review .bsx-vseq-label { color: var(--amber); font-weight:600; }
+
+/* ---- real-document mode: capability panel + OCR field table ---- */
+.bsx-cap-grid { display:grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap:0.5rem; }
+.bsx-field-row { display:flex; justify-content:space-between; align-items:center; padding:0.5rem 0;
+  border-bottom: 1px solid var(--line-soft); font-family: var(--font-body); font-size: 0.85rem; }
+.bsx-field-row:last-child { border-bottom: none; }
+.bsx-field-name { color: var(--text-3); font-size:0.68rem; text-transform:uppercase; letter-spacing:0.05em; }
+.bsx-field-value { font-family: var(--font-mono); color: var(--text); font-size: 0.88rem; }
+
+/* advisory-toned variant of the finding card (real-document forensics
+   that are advisory-only, not a decisive finding -- see
+   core/realdoc/pipeline.py::_advisory_only) */
+.bsx-finding.advisory { border-color: var(--amber-dim); }
+.bsx-finding.advisory::before { background: var(--amber); }
+.bsx-finding.advisory .bsx-finding-head { background: var(--amber-bg); }
 
 /* ---- finding cards (evidence screen) ---- */
 .bsx-finding { border: 1px solid var(--red-dim); background: var(--surface-low); border-radius: var(--radius-lg);

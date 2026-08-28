@@ -398,3 +398,137 @@ def audit_timeline_html(records: list[dict], limit: int = 8) -> str:
             f"<div class='bsx-timeline-hash'>HASH: {this_hash[:24]}&hellip;</div></div>"
         )
     return f"<div class='bsx-timeline'>{''.join(items)}</div>"
+
+
+# ------------------------------------------------------------------------
+# Real Document Screening (Mode B) -- pure render functions, same contract
+# as the rest of this file: data in, markup out, never touches session
+# state or the filesystem. See core/realdoc/pipeline.py for the shapes
+# these take (RealDocVerdict, LadderStep, ExtractedField, capabilities dict).
+# ------------------------------------------------------------------------
+
+def realdoc_capability_panel_html(capabilities: dict[str, bool]) -> str:
+    """Every entry here is True/False for whether that layer applies to
+    THIS document at all -- never a pass/fail verdict (that's the ladder's
+    job). False therefore always renders neutral/grey ("NOT APPLICABLE"),
+    the same way a genuinely inapplicable check should never look like a
+    finding: a marksheet's MRZ being N/A is not evidence of anything."""
+    chips = []
+    for label, ok in capabilities.items():
+        cls = "ok" if ok else "na"
+        text = f"{label} ✓" if ok else f"{label} ○ NOT APPLICABLE"
+        chips.append(f"<span class='bsx-status-dot'><span class='dot {cls}'></span>{text}</span>")
+    return f"<div class='bsx-pill-row'>{''.join(chips)}</div>"
+
+
+_LADDER_DOT = {"VERIFIED": ("pass", "✓", "VERIFIED"), "FAILED": ("fail", "✕", "FAILED"),
+               "REVIEW": ("review", "!", "REVIEW"), "NOT_APPLICABLE": ("na", "–", "N/A")}
+
+
+def realdoc_ladder_html(steps: list) -> str:
+    rows = []
+    for i, step in enumerate(steps, 1):
+        dot_cls, icon, status_txt = _LADDER_DOT.get(step.status, ("na", "–", "N/A"))
+        row_cls = {"pass": "", "fail": "fail", "review": "review", "na": "na"}[dot_cls]
+        detail = f"<div style='font-size:0.72rem;color:var(--text-3);'>{step.detail}</div>" if step.detail else ""
+        rows.append(
+            f"<div class='bsx-vseq-row {row_cls}'>"
+            f"<div class='bsx-vseq-dot {dot_cls}'>{icon}</div>"
+            f"<div class='bsx-vseq-label' style='flex-direction:column;align-items:flex-start;gap:0.1rem;'>"
+            f"<div style='display:flex;justify-content:space-between;width:100%;'>"
+            f"<span>{i:02d} {step.name}</span><span class='status'>{status_txt}</span></div>"
+            f"{detail}</div></div>"
+        )
+    return f"<div class='bsx-vseq'>{''.join(rows)}</div>"
+
+
+def realdoc_fields_table_html(fields: dict) -> str:
+    """fields: dict[str, core.realdoc.fields.ExtractedField]. Renders every
+    field regardless of status -- EXTRACTED, UNCERTAIN and NOT_DETECTED are
+    all shown, never silently dropped, so "we didn't find this" stays as
+    visible as "we found this"."""
+    status_cls = {"EXTRACTED": "green", "UNCERTAIN": "amber", "NOT_DETECTED": ""}
+    rows = []
+    for key, f in fields.items():
+        label = key.replace("_", " ").upper()
+        if f.status == "NOT_DETECTED":
+            value_html = "<span style='color:var(--text-3);'>NOT DETECTED</span>"
+        else:
+            pill = f"<span class='bsx-pill {status_cls[f.status]}' style='margin-left:0.5rem;'>{f.status} · {f.confidence}</span>"
+            value_html = f"<span class='bsx-field-value'>{f.value}</span>{pill}"
+        rows.append(f"<div class='bsx-field-row'><span class='bsx-field-name'>{label}</span>{value_html}</div>")
+    return "".join(rows)
+
+
+def realdoc_evidence_html(signals: list) -> str:
+    """Every signal that actually says something -- a real finding (FAIL)
+    or an advisory note (a forensic WEAK carrying an "ADVISORY:" message,
+    see core/realdoc/pipeline.py::_advisory_only) -- as one card each. A
+    clean PASS with nothing to report is not shown: "no evidence" reads as
+    an empty, explicitly-labelled list, not a wall of green checkmarks."""
+    from core.types import Severity
+    cards = []
+    for s in signals:
+        if s.severity == Severity.PASS:
+            continue
+        if s.severity == Severity.WEAK and not s.message.startswith("ADVISORY:"):
+            continue  # e.g. "no face detected" -- not a finding about the document itself
+        tone_cls = "red" if s.severity == Severity.FAIL else "amber"
+        card_cls = "" if s.severity == Severity.FAIL else "advisory"
+        label = "FINDING" if s.severity == Severity.FAIL else "ADVISORY"
+        heading = s.check.replace("realdoc_", "").replace("_", " ").title()
+        cards.append(
+            f"<div class='bsx-finding {card_cls}'><div class='bsx-finding-head'>"
+            f"<span class='bsx-pill {tone_cls}' style='margin-right:0.5rem;'>{label}</span>{heading}</div>"
+            f"<div class='bsx-finding-body'><p>{s.message}</p></div></div>"
+        )
+    if not cards:
+        return ("<p style='color:var(--text-3);font-size:0.85rem;'>No findings or advisories -- "
+                "every applicable check passed cleanly.</p>")
+    return "".join(cards)
+
+
+def realdoc_confidence_html(steps: list) -> str:
+    """A simple, honest completeness measure: how many of the ladder's
+    steps reached a definitive VERIFIED/FAILED result versus how many
+    were REVIEW (attempted, inconclusive) or NOT_APPLICABLE (correctly
+    skipped). Distinct from the risk score -- a document can score LOW
+    with low confidence (little was actually determinable) just as
+    easily as with high confidence (everything ran clean)."""
+    definitive = sum(1 for s in steps if s.status in ("VERIFIED", "FAILED"))
+    applicable = sum(1 for s in steps if s.status != "NOT_APPLICABLE")
+    pct = round(100 * definitive / applicable) if applicable else 0
+    return (f"<div class='bsx-stat'><div class='label'>Evidence Confidence</div>"
+            f"<div class='value'>{definitive}/{applicable}<span class='sub'>applicable checks reached a "
+            f"definitive result ({pct}%)</span></div></div>")
+
+
+_REALDOC_BAND_HEX = {"LOW": "#22c55e", "MEDIUM": "#f59e0b", "HIGH": "#f59e0b", "REVIEW": "#7a8390"}
+_REALDOC_BAND_CLS = {"LOW": "green", "MEDIUM": "amber", "HIGH": "amber", "REVIEW": ""}
+
+
+def realdoc_verdict_card_html(verdict) -> str:
+    cls = _REALDOC_BAND_CLS.get(verdict.band, "")
+    hex_color = _REALDOC_BAND_HEX.get(verdict.band, "#7a8390")
+    label = f"{verdict.band} RISK" if verdict.band != "REVIEW" else "REVIEW"
+    return f"""
+    <div class="bsx-card" style="margin-top:0.8rem;">
+      <div class="bsx-card-body" style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:0.8rem;">
+        <div>
+          <div style="font-family:var(--font-body);font-size:0.68rem;font-weight:700;text-transform:uppercase;
+               letter-spacing:0.07em;color:var(--text-3);">Recommendation</div>
+          <div style="font-family:var(--font-head);font-weight:700;color:{hex_color};font-size:1.15rem;
+               text-transform:uppercase;">{verdict.action}</div>
+        </div>
+        <div style="text-align:right;">
+          <div style="font-family:var(--font-body);font-size:0.68rem;font-weight:700;text-transform:uppercase;
+               letter-spacing:0.07em;color:var(--text-3);">Risk Score</div>
+          <div style="font-family:var(--font-mono);font-weight:700;color:{hex_color};font-size:1.4rem;">{verdict.score}/100</div>
+        </div>
+        <span class="bsx-pill {cls}">{label}</span>
+      </div>
+    </div>
+    <p style="color:var(--text-3);font-size:0.75rem;margin-top:0.5rem;">
+      This screening is decision support. Final determination remains with the authorized officer.
+    </p>
+    """
