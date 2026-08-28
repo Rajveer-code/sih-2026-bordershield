@@ -216,6 +216,47 @@ def test_field_extraction_rejects_a_numeric_only_name_grab():
     assert fields["name"].status == "NOT_DETECTED"
 
 
+# --------------------------------------- Indian-ID label-independent values ---
+# Found against a real Aadhaar PDF: none of these three values sit next to
+# a label matching this project's original passport/college-ID-oriented
+# keyword list at all, so all three were previously silently NOT_DETECTED
+# despite being genuinely present and legible in the OCR text.
+
+def test_spaced_aadhaar_style_number_is_extracted_without_a_label():
+    words = [OcrWord("YOUR AADHAAR NUMBER", 0.8, ()), OcrWord("2878 8883 7088", 0.9, ())]
+    fields = extract_fields(words)
+    assert fields["document_number"].value == "287888837088"
+
+
+def test_bare_gender_word_is_extracted_without_a_sex_or_gender_label():
+    words = [OcrWord("Address:", 0.9, ()), OcrWord("/ MALE", 0.8, ())]
+    fields = extract_fields(words)
+    assert fields["gender"].value == "MALE"
+
+
+def test_bare_m_or_f_alone_is_not_treated_as_gender():
+    """Only the unambiguous full words are trusted label-independent --
+    see core/realdoc/fields.py's own comment on why bare M/F is excluded
+    (too easily a stray section letter or initial with nothing anchoring
+    it to an actual gender field)."""
+    words = [OcrWord("SECTION M", 0.9, ())]
+    fields = extract_fields(words)
+    assert fields["gender"].status == "NOT_DETECTED"
+
+
+def test_name_is_inferred_positionally_from_the_line_before_a_found_dob():
+    words = [OcrWord("Rajveer Singh Pall", 0.9, ()), OcrWord("D0B:17/12/2004", 0.8, ())]
+    fields = extract_fields(words)
+    assert fields["name"].value == "RAJVEER SINGH PALL"
+    assert fields["name"].status == "UNCERTAIN"   # positional inference, not a labelled read
+
+
+def test_name_positional_fallback_does_not_fire_without_a_found_dob():
+    words = [OcrWord("Rajveer Singh Pall", 0.9, ()), OcrWord("Some other line", 0.8, ())]
+    fields = extract_fields(words)
+    assert fields["name"].status == "NOT_DETECTED"
+
+
 # ------------------------------------------------------------------ risk ---
 
 def test_realdoc_band_never_reaches_critical():

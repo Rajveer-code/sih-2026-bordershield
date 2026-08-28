@@ -21,11 +21,24 @@ _DATE_PATTERNS = [
 ]
 
 _DOC_NUMBER_PATTERN = re.compile(r"\b[A-Z]{0,3}[0-9]{6,12}\b")
+# Aadhaar's own universal print format: 12 digits in 3 groups of 4, always
+# space-separated ("2878 8883 7088") -- the plain contiguous-digit pattern
+# above only ever sees each 4-digit group as its own separate OCR line, so
+# a real Aadhaar number was silently never extracted at all. Distinctive
+# enough (12 digits, exactly this grouping) to scan for directly across
+# every OCR line, independent of finding a label first -- Aadhaar prints
+# the number as its own line with no adjacent "NUMBER:" style label.
+_AADHAAR_NUMBER_PATTERN = re.compile(r"\b(\d{4})\s(\d{4})\s(\d{4})\b")
 
 _LABEL_HINTS: dict[str, list[str]] = {
     "name": ["NAME", "SURNAME", "GIVEN NAME"],
-    "date_of_birth": ["DATE OF BIRTH", "DOB", "BIRTH"],
-    "document_number": ["PASSPORT NO", "DOCUMENT NO", "ID NO", "REGISTRATION NO", "ROLL NO", "NUMBER"],
+    # "D0B" (zero, not letter O) is a real, observed OCR misread of "DOB"
+    # in a printed Aadhaar's small mixed Hindi/English label -- same idea
+    # as core/mrz.py's own _CONFUSION table for exactly this class of
+    # character confusion, applied here to a label instead of a checksum.
+    "date_of_birth": ["DATE OF BIRTH", "DOB", "D0B", "BIRTH"],
+    "document_number": ["PASSPORT NO", "DOCUMENT NO", "ID NO", "REGISTRATION NO",
+                          "ROLL NO", "AADHAAR NO", "AADHAARNO", "NUMBER"],
     "date_of_issue": ["DATE OF ISSUE", "ISSUE DATE", "ISSUED"],
     "date_of_expiry": ["DATE OF EXPIRY", "EXPIRY", "VALID UNTIL", "VALID UPTO"],
     "nationality": ["NATIONALITY"],
@@ -135,6 +148,55 @@ def extract_fields(words: list[OcrWord]) -> dict[str, ExtractedField]:
                     status = "EXTRACTED" if conf >= 0.60 else "UNCERTAIN"
                     fields[field_key] = ExtractedField(value, status, _confidence_bucket(conf), lines[i])
             break
+
+    # Supplementary, label-independent passes: some values are printed in
+    # a distinctive enough FORMAT to recognise directly, with no adjacent
+    # "LABEL:" text at all -- an Aadhaar card prints "MALE" or "FEMALE"
+    # bare (bilingual pair, e.g. "/ MALE"), and its 12-digit number as its
+    # own line, both true on the real Aadhaar this was found against.
+    if "document_number" not in fields:
+        for i, line in enumerate(upper_lines):
+            m = _AADHAAR_NUMBER_PATTERN.search(line)
+            if m:
+                fields["document_number"] = ExtractedField(
+                    "".join(m.groups()), "EXTRACTED", _confidence_bucket(words[i].confidence), lines[i])
+                break
+
+    if "gender" not in fields:
+        # Bare M/F (no adjacent SEX/GENDER label) is excluded here --
+        # too easily a false positive (a stray section letter, unit,
+        # initial) once nothing anchors it to an actual gender field.
+        # Only the unambiguous full words are trusted label-independent.
+        for i, line in enumerate(upper_lines):
+            tokens = re.findall(r"[A-Z]+", line)
+            hit = next((t for t in tokens if t in ("MALE", "FEMALE", "TRANSGENDER")), None)
+            if hit:
+                fields["gender"] = ExtractedField(hit, "EXTRACTED", _confidence_bucket(words[i].confidence), lines[i])
+                break
+
+    # Positional fallback for name: an Indian ID card conventionally prints
+    # the holder's name directly above their date of birth, with no "NAME:"
+    # label of its own at all (confirmed against a real Aadhaar -- the name
+    # appeared twice, neither time next to a label). Only applied once a
+    # DOB was actually found, and only if the candidate line looks like a
+    # plausible name (2-4 alphabetic words, not itself another field's
+    # label) -- reported UNCERTAIN, never EXTRACTED, because this is
+    # positional inference, not a labelled read.
+    dob_field = fields.get("date_of_birth")
+    if "name" not in fields and dob_field is not None and dob_field.status != "NOT_DETECTED":
+        try:
+            dob_idx = lines.index(dob_field.source)
+        except ValueError:
+            dob_idx = -1
+        if dob_idx > 0:
+            candidate = lines[dob_idx - 1].strip()
+            candidate_words = candidate.split()
+            looks_like_name = (2 <= len(candidate_words) <= 4
+                                 and all(w.replace("'", "").isalpha() for w in candidate_words)
+                                 and not any(h in candidate.upper() for h in all_hints))
+            if looks_like_name:
+                fields["name"] = ExtractedField(candidate.upper(), "UNCERTAIN", "LOW",
+                                                  f"positional: line before DOB ({dob_field.source!r})")
 
     for key in _ALL_FIELD_KEYS:
         fields.setdefault(key, ExtractedField("", "NOT_DETECTED", "-", ""))
