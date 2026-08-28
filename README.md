@@ -65,10 +65,11 @@ Full rationale for the fusion rule (and the two real bugs it took to get right) 
 
 | Path | What's in it |
 |---|---|
-| `core/` | The actual pipeline: MRZ/VIZ reading, crosszone, rules engine, forensics, face verification, crypto (PKI + signed manifest + ledger), risk fusion. |
+| `core/` | Mode A's pipeline: MRZ/VIZ reading, crosszone, rules engine, forensics, face verification, crypto (PKI + signed manifest + ledger), risk fusion. |
+| `core/realdoc/` | Mode B's separate pipeline (arbitrary real documents): OCR, classification, portrait discovery, best-effort MRZ, field extraction/validation, its own capped risk fusion. See "Real Document Screening" below. Imports from `core/` (reuses forensics + face verification unchanged); nothing in `core/` imports back. |
 | `synth/` | Generates the synthetic UTO demo document, the 3 forged attacks (DOB edit, portrait swap, screen recapture), and signs everything. |
 | `ui/` | Streamlit console. `style.py` = CSS/design tokens, `screens.py` = pure render functions (data in, markup out, never touches session state), `actions.py` = session-state/ledger logic, `pages.py` = per-screen orchestration wiring the two together. |
-| `tests/` | 81 tests, run before every commit. |
+| `tests/` | 97 tests, run before every commit. |
 | `docs/` | Phase-0 research, strategy, architecture, feature backlog, execution plan. Background/rationale, not setup instructions — this README is the setup doc. |
 | `reference/` | The Stitch-generated UI reference design the console's visuals are matched to. |
 | `data/`, `models/`, `results/` | Gitignored. Generated/downloaded, never committed — `data/pki/` specifically holds real (if demo-only) private keys. |
@@ -80,7 +81,7 @@ Full rationale for the fusion rule (and the two real bugs it took to get right) 
 | Screen | Shows |
 |---|---|
 | **Command Dashboard** | Live stats from the real ledger, the 6-button Attack Wall, recent cases table. |
-| **New Screening** | Upload a document + optional live face capture. |
+| **New Screening** | Mode toggle: **Demo Document** (the UTO template + Attack Wall) or **Real Document** (any arbitrary upload, see below). |
 | **Evidence Analysis** | The document (heatmap-boxed if anything failed), a 4-tier verification sequence, one detail card per failed signal with the actual compared values. |
 | **Risk Decision** | Score ring, the real policy.yaml band cutoffs, per-signal weight breakdown. |
 | **Investigation** | Case summary, decoded MRZ with real per-field checksum status, hash-chained audit trail, chain-integrity verify + tamper-demo utilities. |
@@ -108,13 +109,42 @@ The Attack Wall's **FACE MISMATCH** button stays disabled — it needs a *second
 
 `data/portraits/` is gitignored — real faces never get committed. Don't put anyone's actual passport/Aadhaar/ID scan through this pipeline expecting a real result (see "What this is NOT," above) — it only ever wants a face crop, not the document.
 
+## Real Document Screening (Mode B)
+
+A second, separate pipeline (`core/realdoc/`) alongside Mode A's fixed-template one. Upload *any* document — passport, college ID, marksheet, driving licence, whatever — at its own native resolution, no 1000×700 requirement, nothing resized destructively. Switch to it via **Command Dashboard → Real Document**, or the mode toggle at the top of **New Screening**.
+
+It is **capability-aware**: every check only runs when the document actually supports it, and says so explicitly rather than guessing.
+
+| Capability | How it's decided |
+|---|---|
+| OCR | [RapidOCR](https://github.com/RapidAI/RapidOCR) (ONNX runtime backend — no torch/paddle, installed with `--no-deps` + only its non-cv2 dependencies, specifically to avoid a second `cv2` package colliding with `opencv-contrib-python`; verified side-by-side). Real text, real confidence scores, off any document. PDF uploads are rendered from page 1 via PyMuPDF (`core/realdoc/loader.py`) — no Poppler binary needed. |
+| Document type | Best-effort: a *confidently-read* MRZ → PASSPORT; else OCR keyword hits (AADHAAR, COLLEGE, MARKSHEET, ...); else aspect ratio; else `UNKNOWN`. A low-confidence MRZ-shaped read does NOT count as passport evidence (dense body text on a certificate can trip the locator too) — never claimed as more certain than that. |
+| Field extraction | Regex/keyword over the OCR text (name, DOB, doc number, dates, institution). Every field reports `EXTRACTED` / `UNCERTAIN` / `NOT_DETECTED` with a confidence bucket — never a guessed value. Guards against hallucination: a label with no value of its own never borrows the next field's label text; a free-text field (name/nationality) never accepts a numbers-only grab; a gender field only accepts an actual M/F/MALE/FEMALE token. |
+| MRZ | Four states, not a boolean — `NOT_DETECTED`, `INSUFFICIENT_QUALITY`, `DETECTED_VALID`, `DETECTED_INVALID` (`core/realdoc/mrz_scan.py`). Reuses `core/mrz.py`'s real ICAO checksum math; its band-locator fallback was rebounded to grow outward from the single densest text row rather than take every row above a loose 30%-of-peak floor (a real scanned page returned an 869px/37%-of-page band under the old logic — see commit history). `try_read_mrz_robust()` additionally retries against a document-boundary-cropped-and-deskewed version of the page (`core/realdoc/page_crop.py`) when the page has visible margin around the actual document. |
+| Portrait | Full-page YuNet scan (`core.face.pipeline.detect_faces`, additive — the existing single-best `detect_largest_face` used everywhere else is untouched), scored by confidence/size/off-centre position, with a size floor measured against real documents (6% of the shorter side, or `MIN_FACE_SIZE`, whichever is larger — a marksheet seal graphic hit 93% YuNet confidence at 4% size, real ID portraits ran 10–23%). No plausible candidate → biometric comparison is skipped outright. An officer can override with a manually-specified region (4 plain number inputs, no new UI dependency) when auto-detection is absent or visibly wrong — it changes *where* the checks look, it cannot fix a genuinely low-quality source photo. |
+| Biometric | The **same** `core.face.pipeline.verify()` used by Mode A — detect → quality gate → SFace embed → cosine match — unchanged, called on the full document (or the manual crop) + the presented photo. |
+| Forensics | The same four detectors Mode A uses (`photo_region`, `noise`, `recapture`, `ela`), but a FAIL from the first three is downgraded to an advisory WEAK signal (zero score weight) in this mode specifically — their thresholds were calibrated only against the synthetic UTO template's one portrait geometry, and validating against 6 real documents showed a 100% false-positive rate on `photo_region_anomaly` before this fix. `ela` was already permanently advisory in Mode A. |
+| Cryptographic integrity | Always `NOT APPLICABLE` — an uploaded real document has no registered demo signature, and this mode never pretends otherwise. |
+
+**Risk fusion is separate from Mode A's** (`core/realdoc/risk.py`, not `core/risk.py`): pure additive scoring against the same `policy.yaml` bands, but it **cannot reach CRITICAL** (that band is reserved for a decisive cryptographic proof Mode A can produce and Mode B structurally cannot — asserted by a test), and returns **REVIEW** instead of a score when there's too little evidence to say anything at all — "could not determine" and "determined to be fine" are kept as different outcomes, never collapsed into one LOW.
+
+**Verified against real documents** (passport, college ID, 10th/12th marksheet, a university marksheet, Aadhaar — never committed, see Privacy below): passport classified `PASSPORT`, 4 fields extracted (DOB, expiry, name, nationality), face **MATCH at similarity 0.585–0.684 across four different real photos of the same person**, and a genuine **MISMATCH at similarity 0.304** against a second, different, consenting person — same unmodified 0.363 threshold both times, no forcing. All three marksheets correctly classified `EDUCATIONAL DOCUMENT`, no MRZ/face fabricated, no false forensic positives. College ID: portrait and OCR both work; face comparison correctly reports REVIEW because the card's own printed photo fails the blur floor (sharpness 9.6, need ≥40) — traced precisely to the card, not the presented photo, and left uncorrected rather than loosening a shared threshold to force a nicer-looking demo.
+
+**Known, honest limitations**, not yet cleared:
+
+- The one real passport tested has its MRZ genuinely undetected: a focused, multi-technique attempt (bounded locator, page-boundary crop, horizontal-extent trimming, a 7-candidate search across the whole lower half) converged on the same finding — this specific scan has no separable page margin to crop to, and no candidate band anywhere clears the confidence floor. Reported honestly as `NOT_DETECTED`, never a fabricated checksum failure. A from-scratch, resolution-adaptive MRZ segmenter could likely fix this but is out of scope for this build.
+- OCR field extraction is regex/keyword based, not a learned extractor — it works well on documents whose fields are explicitly labelled (marksheets, passports) and returns little on ones that aren't (a college ID with just a name and photo; Aadhaar's bilingual layout isn't in the keyword list yet).
+- The manual portrait-region override fixes *location* uncertainty only; it cannot make a genuinely blurry printed photo pass the quality gate.
+
+**Privacy**: uploads and camera captures are decoded straight to in-memory arrays, exactly like Mode A's live face capture — never written to disk. Mode B results are session-only (`st.session_state`), not appended to the hash-chained ledger; that ledger's audit-trail design is for Mode A's synthetic demo cases, and extending it to real, potentially personal documents was a deliberate scope decision, not an oversight. Real documents used to validate this mode were read directly from a local folder outside this repo and never copied in — `data/portraits/` (gitignored) holds only face crops for the biometric demo, never a document scan.
+
 ## Testing
 
 ```powershell
 .\venv\Scripts\python.exe -m pytest tests/ -q
 ```
 
-81 tests covering MRZ checksums, crosszone, rules, risk fusion, all 4 forensic detectors, crypto (both self-consistency and impersonation modes, ledger tamper-detection), and the evidence heatmap. Run this before every commit — CI-equivalent until an actual CI is set up.
+102 tests: 82 covering Mode A (MRZ checksums, crosszone, rules, risk fusion, all 4 forensic detectors, crypto, ledger tamper-detection, the evidence heatmap) + 20 covering Mode B (`tests/test_realdoc.py` — arbitrary dimensions, portrait discovery, real face MATCH across 4 photos, a **genuine** real-second-identity MISMATCH end-to-end plus a forced-threshold logic test kept alongside it, quality-gate REVIEW, the 4-way MRZ status model, MRZ/crypto correctly N/A, field-extraction hallucination guards, page-boundary cropping, band-capping). Run this before every commit — CI-equivalent until an actual CI is set up.
 
 ## Hard rules for this repo
 
