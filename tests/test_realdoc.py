@@ -257,6 +257,29 @@ def test_name_positional_fallback_does_not_fire_without_a_found_dob():
     assert fields["name"].status == "NOT_DETECTED"
 
 
+def test_stacked_labels_pair_with_the_correctly_positioned_value():
+    """Found live on a real passport: 'Date of Issue' and 'Date of
+    Expiry' printed as two consecutive bare labels (no value on either
+    label's own line), with BOTH values printed afterward as their own
+    two-line block, in the same order. A naive "grab the very next line"
+    rule paired Date of Issue's own value (03/04/2024) with the Date of
+    Expiry label instead -- silently reporting a valid-until-2034
+    passport as expired since 2024. Also covers "Dateof Issue" (OCR
+    merged the space between "Date" and "of"), which on its own already
+    hid the label from an exact substring match."""
+    words = [
+        OcrWord("Place of Issue", 0.9, ()),
+        OcrWord("BHOPAL", 0.9, ()),
+        OcrWord("Dateof Issue", 0.85, ()),      # OCR-merged, no space between "Date" and "of"
+        OcrWord("Date of Expiry", 0.85, ()),
+        OcrWord("03/04/2024", 0.9, ()),
+        OcrWord("02/04/2034", 0.9, ()),
+    ]
+    fields = extract_fields(words)
+    assert fields["date_of_issue"].value == "2024-04-03"
+    assert fields["date_of_expiry"].value == "2034-04-02"
+
+
 # ------------------------------------------------------------------ risk ---
 
 def test_realdoc_band_never_reaches_critical():

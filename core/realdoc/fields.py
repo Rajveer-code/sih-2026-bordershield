@@ -89,6 +89,45 @@ def _try_parse_date(text_upper: str) -> str:
     return ""
 
 
+def _match_hint(line: str, hints: list[str]) -> tuple[str, str] | None:
+    """Match a hint against `line`, tolerating OCR merging adjacent words
+    together with no space -- a real passport's "Date of Issue" label was
+    read back as "Dateof Issue" (no space between "Date" and "of"),
+    silently failing an exact "DATE OF ISSUE" substring check and causing
+    the NEXT label's own value to be grabbed instead by the "next line"
+    fallback below. Tries the exact form first, then a space-collapsed
+    comparison on both sides. Returns (hint, text after it in `line`) in
+    whichever form actually matched, or None."""
+    hit = next((h for h in hints if h in line), None)
+    if hit is not None:
+        return hit, line.split(hit, 1)[1]
+    compact = line.replace(" ", "")
+    for h in hints:
+        h_compact = h.replace(" ", "")
+        if h_compact in compact:
+            idx = compact.index(h_compact) + len(h_compact)
+            return h, compact[idx:]
+    return None
+
+
+def _line_matches_any_hint(line: str, hints: list[str]) -> bool:
+    return _match_hint(line, hints) is not None
+
+
+def _is_bare_label_line(line: str) -> bool:
+    """True if `line` matches some field's label with nothing left over on
+    the same line -- a label printed with no value of its own. Real ID
+    layouts commonly stack several such labels consecutively (Date of
+    Issue immediately above Date of Expiry, on a real passport), with
+    their values printed afterward as their own equal-length block, in
+    the same order -- see the block-pairing logic in extract_fields."""
+    for hints in _LABEL_HINTS.values():
+        found = _match_hint(line, hints)
+        if found is not None and len(found[1].strip(" :-")) < 2:
+            return True
+    return False
+
+
 def extract_fields(words: list[OcrWord]) -> dict[str, ExtractedField]:
     """One pass over OCR'd lines: find a label keyword, then take the value
     from the remainder of that same line, or the very next line if the
@@ -104,21 +143,37 @@ def extract_fields(words: list[OcrWord]) -> dict[str, ExtractedField]:
         for field_key, hints in _LABEL_HINTS.items():
             if field_key in fields:
                 continue
-            hit = next((h for h in hints if h in line), None)
-            if hit is None:
+            found = _match_hint(line, hints)
+            if found is None:
                 continue
-            remainder = line.split(hit, 1)[1].strip(" :-")
-            next_line = upper_lines[i + 1] if i + 1 < len(upper_lines) else ""
-            # A short/empty remainder means this OCR box was just the label;
-            # the value is very likely the next box down -- UNLESS that next
-            # box is itself another field's label (a document with several
-            # stacked label/value pairs whose watermark or layout starved
-            # this label of its own value reads as NOT_DETECTED, not as
-            # someone else's label text).
+            hit, remainder_raw = found
+            remainder = remainder_raw.strip(" :-")
             if len(remainder) >= 2:
                 candidate = remainder
-            elif next_line and not any(h in next_line for h in all_hints):
-                candidate = next_line
+            elif _is_bare_label_line(line):
+                # This label has no value of its own on the same line.
+                # Real ID layouts commonly stack several such labels
+                # consecutively (Date of Issue directly above Date of
+                # Expiry, confirmed on a real passport), printing ALL
+                # their values afterward as an equal-length block in the
+                # same order -- NOT one value immediately below each
+                # label. A naive "next line" grab silently paired Date of
+                # Issue's own value with the Date of Expiry label instead
+                # on that passport. Find the full run of consecutive
+                # bare-label lines this one sits in, and pair by POSITION
+                # within that run against the value-line run immediately
+                # following it. Degrades to exactly the old "next line"
+                # behaviour when the label isn't part of a stack (a run
+                # of length 1).
+                block_start = i
+                while block_start > 0 and _is_bare_label_line(upper_lines[block_start - 1]):
+                    block_start -= 1
+                block_end = i
+                while block_end + 1 < len(upper_lines) and _is_bare_label_line(upper_lines[block_end + 1]):
+                    block_end += 1
+                value_idx = block_end + 1 + (i - block_start)
+                value_line = upper_lines[value_idx] if value_idx < len(upper_lines) else ""
+                candidate = value_line if (value_line and not _line_matches_any_hint(value_line, all_hints)) else ""
             else:
                 candidate = ""
             if not candidate:
