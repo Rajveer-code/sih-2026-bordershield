@@ -61,6 +61,20 @@ def detect_largest_face(bgr: np.ndarray) -> np.ndarray | None:
     return faces[np.argmax(faces[:, -1])]
 
 
+def detect_faces(bgr: np.ndarray) -> np.ndarray:
+    """Every YuNet detection on the image (same 15-value row shape as
+    detect_largest_face), not reduced to the single best one. Added for
+    core/realdoc/portrait.py, which scores multiple candidates on an
+    arbitrary document page to find the most plausible portrait region --
+    detect_largest_face's single-best reduction is right everywhere else in
+    this project (a live capture or a known portrait crop has exactly one
+    face to find) and is left untouched."""
+    h, w = bgr.shape[:2]
+    detector = _get_detector((w, h))
+    _, faces = detector.detect(bgr)
+    return faces if faces is not None else np.empty((0, 15), dtype=np.float32)
+
+
 def quality_gate(bgr: np.ndarray, face_row: np.ndarray) -> tuple[bool, str]:
     x, y, w, h = face_row[:4].astype(int)
     x, y = max(0, x), max(0, y)
