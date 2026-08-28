@@ -234,10 +234,20 @@ def locate_band(gray: np.ndarray, nominal_bbox: tuple[int, int, int, int] | None
 
     We know the exact placement for every document we generate ourselves
     (synth/passport.py records it in the sidecar JSON) -- pass it as
-    nominal_bbox and it is trusted directly. Without it, fall back to
-    scanning the bottom third of the image for the two densest dark-text
-    rows, which is adequate for our own clean renders but not a general
-    document-in-the-wild locator (that is out of scope for this prototype).
+    nominal_bbox and it is trusted directly (this is the only path Mode A's
+    core/pipeline.py ever takes; nothing there calls this fallback).
+
+    Without it (core/realdoc/mrz_scan.py, for arbitrary real documents):
+    grow outward from the single densest text row in the bottom 40%,
+    capped at a bounded max height, rather than taking every row above a
+    loose 30%-of-peak floor. The loose version was measured against a real
+    scanned passport PDF (a full page with margin/background around the
+    actual data page, not an isolated MRZ) and returned an 869px-tall band
+    -- 37% of the page -- because scattered text/watermark/seal density
+    throughout the lower page all cleared 30% of the single peak row. A
+    real MRZ is two lines of text; it is never a large fraction of a
+    properly-oriented page, so the band is bounded accordingly. Confirmed
+    against both the synthetic UTO document and a real passport scan.
     """
     if nominal_bbox is not None:
         return nominal_bbox
@@ -246,10 +256,23 @@ def locate_band(gray: np.ndarray, nominal_bbox: tuple[int, int, int, int] | None
     bottom = gray[int(h_img * 0.6):, :]
     _, binary = cv2.threshold(bottom, 0, 255, cv2.THRESH_BINARY_INV + cv2.THRESH_OTSU)
     row_ink = binary.sum(axis=1)
-    rows_with_text = np.where(row_ink > row_ink.max() * 0.3)[0]
-    if len(rows_with_text) == 0:
+    if row_ink.max() == 0:
         raise ValueError("could not locate an MRZ band: no text-density rows found")
-    y0, y1 = rows_with_text.min(), rows_with_text.max()
+
+    peak = int(row_ink.argmax())
+    threshold = row_ink.max() * 0.5
+    y0 = peak
+    while y0 > 0 and row_ink[y0 - 1] > threshold:
+        y0 -= 1
+    y1 = peak
+    while y1 < len(row_ink) - 1 and row_ink[y1 + 1] > threshold:
+        y1 += 1
+
+    max_h = max(1, int(h_img * 0.12))  # 2 lines of MRZ text is never ~more than 12% of a properly-oriented page
+    if (y1 - y0 + 1) > max_h:
+        pad = max_h // 2
+        y0, y1 = max(0, peak - pad), min(len(row_ink) - 1, peak + pad)
+
     offset = int(h_img * 0.6)
     return (0, offset + y0, w_img, y1 - y0 + 1)
 
