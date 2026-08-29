@@ -45,6 +45,7 @@ st.session_state.page = _LEGACY_PAGES.get(st.session_state.page, st.session_stat
 
 with st.sidebar:
     st.markdown(screens.sidebar_brand_html(), unsafe_allow_html=True)
+    st.markdown(screens.sidebar_identity_html(), unsafe_allow_html=True)
     for page_id, label, icon in _NAV_ITEMS:
         with st.container(key=f"navbtn_{page_id}"):
             if st.button(label, icon=f":material/{icon}:", use_container_width=True, key=f"navbtn_btn_{page_id}"):

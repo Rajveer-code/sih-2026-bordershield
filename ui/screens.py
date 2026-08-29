@@ -38,13 +38,24 @@ _LIGHT_PILL_TEXT = {"GREEN": "CLEARED", "AMBER": "REVIEW", "RED": "CRITICAL"}
 
 
 def sidebar_brand_html() -> str:
-    """The concentric-circle mark is the aperture motif at its smallest --
-    the same decorative element that appears on page heads, reused as the
-    product's own mark so the identity and the ornament are one thing."""
     return ("<div class='bsx-sidebar-brand'>"
-            "<div class='mark' aria-hidden='true'></div>"
             "<div class='name'>BorderShield AI</div>"
-            "<div class='sub'>Screening Console</div>"
+            "<div class='sub'>Screening console</div>"
+            "</div>")
+
+
+def sidebar_identity_html() -> str:
+    """An honest label, not an operator persona. The reference design this
+    console is built against shows a fabricated 'OPERATOR_042 / Unit:
+    Border Intelligence' card -- no auth exists in this app, so that would
+    be inventing a capability. This states what's actually true instead:
+    which document universe is loaded and under which problem statement."""
+    return ("<div class='bsx-sidebar-identity'>"
+            "<span class='dot' aria-hidden='true'></span>"
+            "<div class='txt'>"
+            "<div class='l1'>Demo environment</div>"
+            "<div class='l2'>UTO specimen &middot; PS 26188</div>"
+            "</div>"
             "</div>")
 
 
@@ -59,7 +70,6 @@ def topbar_html(title: str, subtitle: str = "", case_chip: str = "", chain_ok: b
     eyebrow_html = f"<div class='eyebrow'>{eyebrow}</div>" if eyebrow else ""
     return (
         "<div class='bsx-topbar'>"
-        "<div class='bsx-aperture-ring' aria-hidden='true'></div>"
         f"<div>{eyebrow_html}<div class='title'>{title}</div>{sub_html}</div>"
         f"<div class='meta'>{chip_html}{chain_html}</div>"
         "</div>"
