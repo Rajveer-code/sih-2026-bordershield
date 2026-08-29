@@ -231,8 +231,10 @@ div[data-testid="stVerticalBlockBorderWrapper"] {
 /* Gentler, not absent: keep the fade, drop the translation. */
 @media (prefers-reduced-motion: reduce) {
   .block-container > div > div > div[data-testid="stVerticalBlock"] > div,
-  .bsx-verdict, .bsx-verdict-num, .bsx-spine-row, .bsx-metric, .bsx-timeline-item, .bsx-finding,
-  .bsx-status-card, .bsx-scenario-card, .bsx-audit-card {
+  .bsx-verdict, .bsx-verdict-num, .bsx-spine-row, .bsx-metric, .bsx-finding,
+  .bsx-status-card, .bsx-audit-card,
+  .st-key-scn_genuine, .st-key-scn_dob, .st-key-scn_photo, .st-key-scn_recapture,
+  .st-key-scn_face, .st-key-scn_sig {
     animation-name: bsx-fade !important;
   }
   .bsx-ring svg .bsx-arc { animation: none !important; stroke-dashoffset: var(--dash-end, 0) !important; }
@@ -418,13 +420,22 @@ section[data-testid="stSidebar"] .stButton > button p { font-family: inherit !im
 /* ===================== scenario cards (attack wall) ===================
    Bordered cards with a real button as their action row, not a bare
    uppercase button standing in for a card. See ui/screens.py
-   scenario_card_head_html for why the button is split from the markup. */
-.bsx-scenario-grid { display:grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 1px;
-  background: var(--line); border: 1px solid var(--line); border-radius: var(--radius-lg); overflow: hidden; }
+   scenario_card_head_html for why the button is split from the markup.
+
+   Laid out via st.columns(6) in ui/pages.py, not a CSS grid parent: a
+   plain st.container() -- with or without key= -- does not emit the
+   stVerticalBlockBorderWrapper testid in this Streamlit version (checked
+   directly against the running app: zero instances anywhere), so there
+   is no single wrapping element these six containers could share a grid
+   parent through. Each card is self-sufficient instead -- its own
+   border, radius and background declared directly on the .st-key-scn_*
+   selector -- rather than depending on Streamlit's border argument or a
+   shared grid ancestor that doesn't exist. */
 .st-key-scn_genuine, .st-key-scn_dob, .st-key-scn_photo, .st-key-scn_recapture,
 .st-key-scn_face, .st-key-scn_sig {
-  background: var(--surface-lowest) !important; padding: 1.1rem 1.2rem 0.9rem 1.2rem !important;
-  transition: background-color var(--dur-fast) var(--ease-out);
+  background: var(--surface-lowest) !important; border: 1px solid var(--line) !important;
+  border-radius: var(--radius-lg) !important; padding: 1.1rem 1.2rem 0.9rem 1.2rem !important;
+  transition: background-color var(--dur-fast) var(--ease-out), border-color var(--dur-fast) var(--ease-out);
   animation: bsx-rise var(--dur) var(--ease-out) backwards;
 }
 .bsx-scenario-head { display:flex; justify-content:space-between; align-items:center; margin-bottom: 0.7rem; }
@@ -436,15 +447,28 @@ section[data-testid="stSidebar"] .stButton > button p { font-family: inherit !im
 .bsx-scenario-title { font-family: var(--font-head); font-weight: 700; font-size: 1.08rem;
   color: var(--text); letter-spacing: -0.01em; line-height: 1.25; }
 .bsx-scenario-desc { font-size: 0.88rem; line-height: 1.5; color: var(--text-3); margin-top: 0.5rem; min-height: 3.2em; }
-.st-key-scn_genuine .stButton > button, .st-key-scn_dob .stButton > button,
-.st-key-scn_photo .stButton > button, .st-key-scn_recapture .stButton > button,
-.st-key-scn_face .stButton > button, .st-key-scn_sig .stButton > button {
+/* Descendant selectors, not .stButton > button: a disabled button with a
+   `help=` tooltip gets wrapped by Streamlit in an extra
+   .stTooltipHoverTarget div, so the actual <button> is a GRANDCHILD of
+   .stButton for that one case, not a direct child. A `>` combinator here
+   silently failed to match the disabled Face Mismatch button only,
+   leaving it un-styled (default text-transform, wrong colour) while
+   every enabled sibling matched fine -- caught by comparing computed
+   styles between an enabled and the disabled card, not by inspection. */
+.st-key-scn_genuine .stButton button, .st-key-scn_dob .stButton button,
+.st-key-scn_photo .stButton button, .st-key-scn_recapture .stButton button,
+.st-key-scn_face .stButton button, .st-key-scn_sig .stButton button {
   width: 100% !important; background: transparent !important; color: var(--text-2) !important;
   border: none !important; border-top: 1px solid var(--line-soft) !important; border-radius: 0 !important;
   font-family: var(--font-mono) !important; font-weight: 600 !important; font-size: 0.78rem !important;
-  letter-spacing: 0.08em; text-transform: uppercase; padding: 0.8rem 0 0.1rem 0 !important;
+  letter-spacing: 0.08em !important; text-transform: uppercase !important; padding: 0.8rem 0 0.1rem 0 !important;
   min-height: 0 !important; height: auto !important; text-align: left !important;
   justify-content: flex-start !important; margin-top: 0.7rem !important; box-shadow: none !important;
+}
+.st-key-scn_genuine .stButton button:disabled, .st-key-scn_dob .stButton button:disabled,
+.st-key-scn_photo .stButton button:disabled, .st-key-scn_recapture .stButton button:disabled,
+.st-key-scn_face .stButton button:disabled, .st-key-scn_sig .stButton button:disabled {
+  color: var(--text-3) !important; opacity: 1 !important;
 }
 @media (hover: hover) and (pointer: fine) {
   .st-key-scn_dob:hover, .st-key-scn_photo:hover, .st-key-scn_sig:hover { background: var(--amber-bg) !important; }
@@ -455,9 +479,9 @@ section[data-testid="stSidebar"] .stButton > button p { font-family: inherit !im
     color: var(--red); border-color: var(--red-line); }
   .st-key-scn_genuine:hover { background: var(--green-bg) !important; }
   .st-key-scn_genuine:hover .bsx-scenario-layer { color: var(--green); border-color: var(--green-line); }
-  .st-key-scn_genuine .stButton > button:hover, .st-key-scn_dob .stButton > button:hover,
-  .st-key-scn_photo .stButton > button:hover, .st-key-scn_recapture .stButton > button:hover,
-  .st-key-scn_face .stButton > button:hover, .st-key-scn_sig .stButton > button:hover {
+  .st-key-scn_genuine .stButton button:hover, .st-key-scn_dob .stButton button:hover,
+  .st-key-scn_photo .stButton button:hover, .st-key-scn_recapture .stButton button:hover,
+  .st-key-scn_face .stButton button:hover, .st-key-scn_sig .stButton button:hover {
     color: var(--text) !important; }
 }
 
@@ -482,6 +506,9 @@ button[kind="primary"] { background: var(--primary) !important; color: var(--on-
 button[kind="primary"]:hover { opacity: 0.85; }
 
 /* ============ NEW SCREENING: an explicit stepped flow ================ */
+.bsx-step-bar { display:flex; gap:2.2rem; margin-bottom: 1.6rem; padding-bottom: 1.2rem;
+  border-bottom: 1px solid var(--line); }
+.bsx-step-bar .bsx-step { flex: 1; margin-bottom: 0; }
 .bsx-step { display:flex; align-items:center; gap:0.85rem; margin-bottom: 0.9rem; }
 .bsx-step-num { width:26px; height:26px; border-radius:50%; border:1px solid var(--line); flex-shrink:0;
   display:flex; align-items:center; justify-content:center; font-family: var(--font-mono);

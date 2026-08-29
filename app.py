@@ -39,6 +39,7 @@ _NAV_ITEMS = [
     ("capture", "New screening", "person_search"),
     ("case", "Case file", "assignment_ind"),
     ("audit", "Audit trail", "history"),
+    ("status", "System status", "monitor_heart"),
 ]
 _LEGACY_PAGES = {"evidence": "case", "risk": "case", "investigation": "audit"}
 st.session_state.page = _LEGACY_PAGES.get(st.session_state.page, st.session_state.page)
@@ -74,5 +75,6 @@ _PAGES = {
     "capture": pages.render_capture,
     "case": pages.render_case,
     "audit": pages.render_audit,
+    "status": pages.render_status,
 }
 _PAGES.get(st.session_state.page, pages.render_landing)()

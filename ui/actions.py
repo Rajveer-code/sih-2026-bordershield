@@ -8,8 +8,12 @@ module answers "what actually happens".
 from __future__ import annotations
 
 import json
+import re
+import subprocess
+import sys
 import uuid
 from datetime import datetime, timezone
+from functools import lru_cache
 from pathlib import Path
 
 import cv2
@@ -146,3 +150,74 @@ def pki_loaded() -> bool:
     pki_dir = PATHS["pki"]
     return all((pki_dir / name).exists() for name in
                ("csca_key.pem", "csca_cert.pem", "dsc_key.pem", "dsc_cert.pem"))
+
+
+# --------------------------------------------------------- system status ---
+# Read-only helpers backing the System Status screen. Same rule as
+# pki_loaded() above: these report what's actually on disk, they never
+# create, sign, or mutate anything as a side effect of being called --
+# and they never read a private key (*_key.pem), only public certs.
+
+def models_status() -> list[dict]:
+    """Real file presence and size for every model/cache artifact the
+    pipeline depends on, read from config.MODEL_FILES -- never a
+    hardcoded list of names or sizes."""
+    from config import MODEL_FILES
+    labels = {
+        "yunet": "Face detection (YuNet, ONNX)",
+        "sface": "Face recognition (SFace, ONNX)",
+        "glyphs": "MRZ glyph templates",
+        "viz_glyphs": "VIZ glyph templates",
+    }
+    return [
+        {
+            "label": labels.get(key, key),
+            "exists": path.exists(),
+            "size_bytes": path.stat().st_size if path.exists() else 0,
+            "filename": path.name,
+        }
+        for key, path in MODEL_FILES.items()
+    ]
+
+
+def pki_public_info() -> dict | None:
+    """Reads the demo signing authority's PUBLIC certificates only --
+    never the private keys, and never calls load_or_create_pki() (which
+    would mint a new authority as a side effect of merely checking for
+    one). Returns None if the PKI hasn't been created yet, e.g. before
+    the first document has ever been signed."""
+    if not pki_loaded():
+        return None
+    from cryptography import x509
+    from cryptography.hazmat.primitives import hashes
+    pki_dir = PATHS["pki"]
+    dsc_cert = x509.load_pem_x509_certificate((pki_dir / "dsc_cert.pem").read_bytes())
+    csca_cert = x509.load_pem_x509_certificate((pki_dir / "csca_cert.pem").read_bytes())
+    return {
+        "dsc_subject": dsc_cert.subject.rfc4514_string(),
+        "csca_subject": csca_cert.subject.rfc4514_string(),
+        "curve": dsc_cert.public_key().curve.name,
+        "dsc_fingerprint": dsc_cert.fingerprint(hashes.SHA256()).hex(),
+        "csca_fingerprint": csca_cert.fingerprint(hashes.SHA256()).hex(),
+    }
+
+
+@lru_cache(maxsize=1)
+def test_case_count() -> int | None:
+    """The real number of test cases `pytest --collect-only` would
+    enumerate -- not a hardcoded snapshot (which silently drifts the
+    moment a test is added or removed) and not a naive count of `def
+    test_*` functions (which undercounts parametrized tests: test_mrz.py
+    alone expands 7 function definitions into 46 collected cases via
+    @pytest.mark.parametrize). Cached for the life of the server process,
+    since the suite doesn't change while it's running. Returns None if
+    pytest can't be invoked at all, rather than a guessed number."""
+    try:
+        result = subprocess.run(
+            [sys.executable, "-m", "pytest", "--collect-only", "-q"],
+            cwd=PATHS["root"], capture_output=True, text=True, timeout=30,
+        )
+        m = re.search(r"(\d+) tests? collected", result.stdout)
+        return int(m.group(1)) if m else None
+    except Exception:
+        return None

@@ -77,7 +77,7 @@ def render_landing() -> None:
 
 
 def render_dashboard() -> None:
-    chain_ok, _ = ledger_module.verify_chain()
+    chain_ok, broken_at = ledger_module.verify_chain()
     records = ledger_module.read_all()
 
     st.markdown(screens.topbar_html(
@@ -87,49 +87,72 @@ def render_dashboard() -> None:
         eyebrow="PS 26188 · Ministry of Home Affairs · Sashastra Seema Bal",
         chain_ok=chain_ok), unsafe_allow_html=True)
 
-    high_review = sum(1 for r in records if r.get("band") in ("HIGH", "CRITICAL"))
+    # Four real status cards -- each backed by an actual file check or
+    # ledger read, never a fabricated "engine version" or confidence
+    # number. See PLAN_redesign.md's substitution map for the mockup
+    # panels these replace.
+    models = actions.models_status()
+    face_ready = all(m["exists"] for m in models if "Face" in m["label"])
     critical = sum(1 for r in records if r.get("band") == "CRITICAL")
-    st.markdown(screens.metric_strip_html([
-        screens.metric_cell_html("Cases logged", str(len(records)), "this session"),
-        screens.metric_cell_html("Requires review", str(high_review), f"{critical} critical",
-                                   tone="red" if high_review else ""),
-        screens.status_cell_html("System status", [(actions.pki_loaded(), "Signing PKI"),
-                                                     (chain_ok, "Ledger chain")]),
+    high_review = sum(1 for r in records if r.get("band") in ("HIGH", "CRITICAL"))
+    st.markdown(screens.status_grid_html([
+        screens.status_card_html(
+            "Biometric models", "READY" if face_ready else "MISSING",
+            pill=("ok", "LOADED") if face_ready else ("bad", "NOT FOUND"),
+            sub=f"{sum(1 for m in models if m['exists'])}/{len(models)} artifacts on disk"),
+        screens.status_card_html(
+            "Signing PKI", "INITIALIZED" if actions.pki_loaded() else "NOT SET UP",
+            pill=("ok", "LOADED") if actions.pki_loaded() else ("neutral", "LAZY INIT"),
+            sub="Demo authority · ECDSA P-256"),
+        screens.status_card_html(
+            "Ledger chain", "INTACT" if chain_ok else f"BROKEN AT #{broken_at}",
+            pill=("ok", "VERIFIED") if chain_ok else ("bad", "TAMPERED")),
+        screens.status_card_html(
+            "Cases logged", str(len(records)),
+            pill=("bad", f"{critical} CRITICAL") if critical else ("neutral", "THIS SESSION"),
+            sub=f"{high_review} requiring review" if high_review else "none requiring review"),
     ]), unsafe_allow_html=True)
 
     st.write("")
-    with st.container(key="attack_wall_card"):
+    with st.container():
         st.markdown(
             "<div class='bsx-tier-head'>Controlled attack simulation "
             "<span style='font-family:var(--font-mono);font-size:0.74rem;color:var(--text-3);"
             "border:1px solid var(--line);border-radius:2px;padding:0.2rem 0.5rem;letter-spacing:0.12em;'>"
             "DEMO ENVIRONMENT</span></div>", unsafe_allow_html=True)
-        st.caption("Each button forges a real document, runs the full pipeline, and writes a hash-chained case. "
-                    "Hover colour previews the severity that vector should produce.")
+        st.caption("Each card forges a real document, runs the full Trust Ladder, and writes a hash-chained "
+                    "case. LAYER names the real tier (core/types.py::Tier) that should catch it.")
         st.write("")
         cols = st.columns(6)
         specs = [
-            ("atk_genuine", "GENUINE", "verified", None, "The untouched synthetic document. Every tier should pass."),
-            ("atk_dob", "CHANGE DOB", "edit_calendar", "A",
-             "VIZ date of birth edited; MRZ left untouched. Caught by cross-zone consistency."),
-            ("atk_photo", "REPLACE PHOTO", "add_photo_alternate", "B",
-             "Portrait swapped, feathered seam. Caught by forensics AND crypto impersonation check."),
-            ("atk_recapture", "SCREEN RECAPTURE", "screenshot_monitor", "C",
-             "Simulated screen/print recapture. Forensics-only -- must route to AMBER, never RED."),
-            ("atk_face", "FACE MISMATCH", "face_retouching_off", "FACE", None),
-            ("atk_sig", "BREAK SIGNATURE", "draw", "SIG",
+            ("scn_genuine", "SCN_01", "ALL TIERS", "Genuine document", None,
+             "The untouched synthetic document. Every tier should pass, clearing at LOW."),
+            ("scn_dob", "SCN_02", "T1 RULES", "Change of birth date", "A",
+             "VIZ date of birth edited; MRZ left untouched. Caught by cross-zone consistency, "
+             "which floors the verdict at CRITICAL."),
+            ("scn_photo", "SCN_03", "T0 CRYPTO / T2 FORENSICS", "Replace the portrait", "B",
+             "Portrait swapped, feathered seam. Caught by forensics AND the signed-manifest "
+             "integrity check."),
+            ("scn_recapture", "SCN_04", "T2 FORENSICS", "Screen recapture", "C",
+             "Simulated screen/print recapture. Forensics-only signal -- routes to AMBER, never RED."),
+            ("scn_face", "SCN_05", "T2 BIOMETRIC", "Face mismatch", "FACE",
+             "Needs a second, different person's real photo -- see the disabled button for why "
+             "this one is blocked in this build."),
+            ("scn_sig", "SCN_06", "T0 CRYPTO", "Break the signature", "SIG",
              "Hand-tamper an already-signed manifest. Signature fails -- CRITICAL, no model consulted."),
         ]
-        for col, (key, label, icon, code, help_text) in zip(cols, specs):
+        for col, (key, sid, layer, title, code, desc) in zip(cols, specs):
             with col:
                 with st.container(key=key):
+                    st.markdown(screens.scenario_card_head_html(sid, layer, title, desc),
+                                 unsafe_allow_html=True)
                     if code == "FACE":
-                        st.button(label, icon=f":material/{icon}:", use_container_width=True, disabled=True,
+                        st.button("Run scenario", key=f"{key}_btn", use_container_width=True, disabled=True,
                                    help="Blocked: needs a SECOND, different person's real photo. One real "
                                         "identity is on file in data/portraits/ (live face MATCH already "
                                         "verified working via New Screening) -- a genuine mismatch demo needs "
                                         "someone else's photo too, not just this one person's.")
-                    elif st.button(label, icon=f":material/{icon}:", use_container_width=True, help=help_text):
+                    elif st.button("Run scenario", key=f"{key}_btn", use_container_width=True):
                         if code is None:
                             actions.run_and_log(actions.GENUINE, None)
                         elif code == "SIG":
@@ -169,11 +192,23 @@ def render_capture() -> None:
         "Attack Wall PNGs yourself (crop a field, paste a different photo) and upload it here, or switch to "
         "Real Document above for an arbitrary upload."
     )
+    # A keyed widget's value lives in st.session_state under that key even
+    # before the widget is re-rendered this run, so the step bar can read
+    # "is a document already on file" before st.file_uploader is called
+    # below -- the standard Streamlit pattern for a progress readout that
+    # sits above the widget driving it.
+    _doc_ready = st.session_state.get("capture_doc_uploader") is not None
+    st.markdown(screens.step_bar_html([
+        ("Document", "done" if _doc_ready else "active"),
+        ("Person — optional", "active" if _doc_ready else ""),
+        ("Screen", "active" if _doc_ready else ""),
+    ]), unsafe_allow_html=True)
     col_doc, col_face = st.columns(2, gap="large")
     with col_doc:
         with st.container():
             st.markdown(screens.step_head_html(1, "Document", "active"), unsafe_allow_html=True)
-            uploaded_doc = st.file_uploader("Upload an edited UTO document (PNG, 1000×700)", type=["png"])
+            uploaded_doc = st.file_uploader("Upload an edited UTO document (PNG, 1000×700)", type=["png"],
+                                              key="capture_doc_uploader")
     with col_face:
         with st.container():
             st.markdown(screens.step_head_html(
@@ -229,6 +264,13 @@ def _render_real_document_capture() -> None:
         "comparison as NOT APPLICABLE rather than a fabricated result. PDF is rendered from its first "
         "page only (core/realdoc/loader.py); a multi-page scan needs its relevant page split out first."
     )
+    _doc_ready = st.session_state.get("realdoc_upload") is not None
+    _screened = "realdoc_verdict" in st.session_state
+    st.markdown(screens.step_bar_html([
+        ("Document", "done" if _doc_ready else "active"),
+        ("Person — optional", "active" if _doc_ready else ""),
+        ("Screen", "done" if _screened else ("active" if _doc_ready else "")),
+    ]), unsafe_allow_html=True)
     col_doc, col_face = st.columns(2, gap="large")
     with col_doc:
         with st.container():
@@ -425,7 +467,23 @@ def render_case() -> None:
 
             with st.container():
                 st.markdown("<div class='bsx-tier-head'>Score contributions</div>", unsafe_allow_html=True)
-                st.markdown(screens.risk_contributions_html(verdict.signals), unsafe_allow_html=True)
+                max_weight = max(policy["risk_weights"].values())
+                weighted_fails = sorted(
+                    (s for s in verdict.signals if s.severity == Severity.FAIL and s.weight > 0),
+                    key=lambda s: -s.weight)
+                meters = "".join(
+                    screens.meter_row_html(screens.finding_heading(s.check), s.weight, max_weight,
+                                             tone="red" if s.weight >= max_weight * 0.6 else "amber")
+                    for s in weighted_fails)
+                total = sum(s.weight for s in weighted_fails)
+                st.markdown(meters or "<p style='color:var(--text-3);font-size:0.85rem;'>No weighted findings.</p>",
+                             unsafe_allow_html=True)
+                st.markdown(f"<div class='bsx-contrib-total'><span>Total score</span>"
+                             f"<span class='amt'>{total}</span></div>", unsafe_allow_html=True)
+
+        with st.container():
+            st.markdown("<div class='bsx-tier-head'>Pipeline log</div>", unsafe_allow_html=True)
+            st.markdown(screens.pipeline_log_html(verdict), unsafe_allow_html=True)
 
         with st.container():
             st.markdown("<div class='bsx-tier-head'>Machine-readable zone</div>", unsafe_allow_html=True)
@@ -468,12 +526,25 @@ def render_audit() -> None:
     with col_left:
         with st.container():
             st.markdown("<div class='bsx-tier-head'>Chain events</div>", unsafe_allow_html=True)
-            st.markdown(screens.audit_timeline_html(records, limit=12), unsafe_allow_html=True)
+            if not records:
+                st.caption("No events logged yet.")
+            else:
+                # Real 1-based position in append order (oldest = record 1)
+                # -- reversed only for display, so RECORD #n always names
+                # the same case no matter how many newer cases arrive.
+                indexed = list(enumerate(records, 1))
+                for i, record in reversed(indexed[-12:]):
+                    st.markdown(screens.audit_record_card_html(record, i, is_head=(i == len(records))),
+                                 unsafe_allow_html=True)
 
     with col_right:
         with st.container():
             st.markdown("<div class='bsx-tier-head'>Integrity status</div>", unsafe_allow_html=True)
-            pill_cls, pill_txt = ("ok", "Audit ledger — intact") if ok else ("broken", f"Chain broken at record {broken_at}")
+            # verify_chain() returns a 0-based index; the record cards
+            # above number from 1 (RECORD #0001 = oldest), so +1 here
+            # keeps this pill naming the SAME record the card above it does.
+            pill_cls, pill_txt = ("ok", "Audit ledger — intact") if ok else \
+                ("broken", f"Chain broken at record #{broken_at + 1:04d}")
             st.markdown(f"<span class='bsx-chain-pill {pill_cls}'>{pill_txt}</span>", unsafe_allow_html=True)
             st.write("")
             if st.button("Re-verify chain", icon=":material/verified_user:", use_container_width=True,
@@ -491,6 +562,113 @@ def render_audit() -> None:
             if st.button("Reset ledger", use_container_width=True, key="reset_ledger_btn"):
                 actions.reset_ledger()
                 st.rerun()
+
+
+def render_status() -> None:
+    """What is actually running, stated plainly. Every value here is read
+    live off disk or the ledger -- nothing is a hardcoded version string
+    or an invented confidence figure. This is the screen that answers a
+    judge's "how do I know this is real" without them having to open a
+    terminal."""
+    chain_ok, broken_at = ledger_module.verify_chain()
+    records = ledger_module.read_all()
+    policy = load_policy()
+    models = actions.models_status()
+    pki = actions.pki_public_info()
+    test_n = actions.test_case_count()
+
+    st.markdown(screens.topbar_html(
+        "System status",
+        "Models, signing authority, policy and ledger, read directly off this machine -- "
+        "not a status page someone remembered to update.",
+        eyebrow="Verification", chain_ok=chain_ok), unsafe_allow_html=True)
+
+    models_ready = all(m["exists"] for m in models)
+    st.markdown(screens.status_grid_html([
+        screens.status_card_html(
+            "Model artifacts", f"{sum(1 for m in models if m['exists'])}/{len(models)}",
+            pill=("ok", "ALL PRESENT") if models_ready else ("bad", "MISSING FILES")),
+        screens.status_card_html(
+            "Signing PKI", "INITIALIZED" if pki else "NOT SET UP",
+            pill=("ok", "ECDSA P-256") if pki else ("neutral", "LAZY INIT")),
+        screens.status_card_html(
+            "Ledger chain", "INTACT" if chain_ok else f"BROKEN AT #{broken_at}",
+            pill=("ok", f"{len(records)} RECORDS") if chain_ok else ("bad", "TAMPERED")),
+        screens.status_card_html(
+            "Test suite", str(test_n) if test_n is not None else "N/A",
+            pill=("ok", "COLLECTED") if test_n else ("neutral", "UNAVAILABLE"),
+            sub="pytest --collect-only, this process"),
+    ]), unsafe_allow_html=True)
+
+    st.write("")
+    col_a, col_b = st.columns([1, 1], gap="large")
+
+    with col_a:
+        with st.container():
+            st.markdown("<div class='bsx-tier-head'>Model artifacts</div>", unsafe_allow_html=True)
+            row_parts = []
+            for m in models:
+                size_txt = f"{m['size_bytes']:,} B" if m["exists"] else "NOT FOUND"
+                row_parts.append(
+                    f"<div class='bsx-datarow'><span class='bsx-field-name'>{m['label']}</span>"
+                    f"<span class='bsx-field-value'>{size_txt}</span></div>")
+            st.markdown(f"<div class='bsx-datalist'>{''.join(row_parts)}</div>", unsafe_allow_html=True)
+
+        with st.container():
+            st.markdown("<div class='bsx-tier-head'>Demo signing authority</div>", unsafe_allow_html=True)
+            if pki is None:
+                st.caption("No PKI on disk yet -- created automatically the first time a document is "
+                            "signed or verified (core/crypto/pki.py::load_or_create_pki).")
+            else:
+                st.caption("Demo signing authority -- a real two-level X.509 chain (ECDSA P-256), but "
+                            "OUR OWN trust anchor, not the ICAO Public Key Directory.")
+                st.markdown(
+                    "<div class='bsx-datalist'>"
+                    f"<div class='bsx-datarow'><span class='bsx-field-name'>DSC subject</span>"
+                    f"<span class='bsx-field-value'>{pki['dsc_subject']}</span></div>"
+                    f"<div class='bsx-datarow'><span class='bsx-field-name'>CSCA subject</span>"
+                    f"<span class='bsx-field-value'>{pki['csca_subject']}</span></div>"
+                    f"<div class='bsx-datarow'><span class='bsx-field-name'>Curve</span>"
+                    f"<span class='bsx-field-value'>{pki['curve']}</span></div>"
+                    "</div>", unsafe_allow_html=True)
+                st.code(f"DSC  SHA-256  {pki['dsc_fingerprint']}\n"
+                         f"CSCA SHA-256  {pki['csca_fingerprint']}", language=None)
+
+    with col_b:
+        with st.container():
+            st.markdown("<div class='bsx-tier-head'>Risk weights &middot; policy.yaml</div>",
+                         unsafe_allow_html=True)
+            rows = "".join(
+                f"<div class='bsx-datarow'><span class='bsx-field-name'>{k.replace('_', ' ')}</span>"
+                f"<span class='bsx-field-value'>+{v}</span></div>"
+                for k, v in policy["risk_weights"].items())
+            st.markdown(f"<div class='bsx-datalist'>{rows}</div>", unsafe_allow_html=True)
+
+        with st.container():
+            st.markdown("<div class='bsx-tier-head'>Bands &amp; overrides</div>", unsafe_allow_html=True)
+            band_rows = "".join(
+                f"<div class='bsx-datarow'><span class='bsx-field-name'>{name} ({lo}&ndash;{hi})</span>"
+                f"<span class='bsx-field-value'>{action}</span></div>"
+                for lo, hi, name, action in policy["risk_bands"])
+            st.markdown(f"<div class='bsx-datalist'>{band_rows}</div>", unsafe_allow_html=True)
+            st.markdown(
+                "<p style='color:var(--text-2);font-size:0.92rem;line-height:1.6;margin-top:0.9rem;'>"
+                "<b>Two hard overrides</b> (core/risk.py), checked before the additive score: "
+                "an invalid signature forces CRITICAL regardless of total; a failed T1 rule floors the "
+                "verdict at CRITICAL (76). With no rule or signature failure, forensic and biometric "
+                "signals alone cap the verdict at HIGH -- they can raise a case for review, never "
+                "condemn one on their own.</p>", unsafe_allow_html=True)
+
+        with st.container():
+            st.markdown("<div class='bsx-tier-head'>Ledger</div>", unsafe_allow_html=True)
+            st.markdown(
+                "<div class='bsx-datalist'>"
+                f"<div class='bsx-datarow'><span class='bsx-field-name'>Records</span>"
+                f"<span class='bsx-field-value'>{len(records)}</span></div>"
+                f"<div class='bsx-datarow'><span class='bsx-field-name'>Chain state</span>"
+                f"<span class='bsx-field-value'>{'INTACT' if chain_ok else f'BROKEN AT #{broken_at}'}</span></div>"
+                "</div>", unsafe_allow_html=True)
+            st.code(f"GENESIS  {ledger_module.GENESIS_HASH}", language=None)
 
 
 # Back-compat: older session_state may still hold one of the three retired

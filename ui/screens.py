@@ -143,6 +143,14 @@ def step_head_html(number: int, label: str, state: str = "") -> str:
              f"<div class='bsx-step-label'>{label}</div><div class='bsx-step-rule'></div></div>")
 
 
+def step_bar_html(steps: list[tuple[str, str]]) -> str:
+    """A horizontal row of step_head_html markers -- the DOCUMENT / PERSON
+    / SCREEN progress bar at the top of New Screening. `steps` is
+    [(label, state), ...] in order; numbering is 1-based and automatic."""
+    cells = "".join(step_head_html(i, label, state) for i, (label, state) in enumerate(steps, 1))
+    return f"<div class='bsx-step-bar'>{cells}</div>"
+
+
 def metric_cell_html(label: str, value: str, sublabel: str = "", tone: str = "") -> str:
     tone_cls = f" tone-{tone}" if tone else ""
     sub_html = f"<span class='sub'>{sublabel}</span>" if sublabel else ""
@@ -395,7 +403,7 @@ def verification_sequence_html(verdict: Verdict) -> str:
     return f"<div class='bsx-spine'>{''.join(rows)}</div>"
 
 
-def _finding_heading(check: str) -> str:
+def finding_heading(check: str) -> str:
     if check.startswith("crosszone_"):
         return f"Visual field ≠ MRZ: {check[len('crosszone_'):].replace('_', ' ')}"
     if check.startswith("mrz_checksum_"):
@@ -427,7 +435,7 @@ def finding_cards_html(verdict: Verdict) -> str:
     for s in verdict.signals:
         if s.severity != Severity.FAIL:
             continue
-        heading = _finding_heading(s.check)
+        heading = finding_heading(s.check)
         body = f"<p>{s.message}</p>"
         if s.check.startswith("crosszone_") and "viz" in s.detail and "mrz" in s.detail:
             body += (
@@ -511,23 +519,6 @@ def _dial_svg(pct: int, hex_color: str, center_value: str, center_label: str,
     """
 
 
-def risk_contributions_html(signals: list) -> str:
-    from core.types import Severity
-    fails = [s for s in signals if s.severity == Severity.FAIL and s.weight > 0]
-    if not fails:
-        rows = "<p style='color:var(--text-3);font-size:0.85rem;'>No weighted findings.</p>"
-    else:
-        rows = "".join(
-            f"<div class='bsx-contrib-row'><span>{_finding_heading(s.check)}</span>"
-            f"<span class='amt'>+{s.weight}</span></div>"
-            for s in sorted(fails, key=lambda s: -s.weight)
-        )
-    total = sum(s.weight for s in fails)
-    return (
-        f"{rows}<div class='bsx-contrib-total'><span>Total score</span><span class='amt'>{total}</span></div>"
-    )
-
-
 def verdict_hero_html(verdict: Verdict, risk_bands: list | None = None) -> str:
     """The single element allowed to dominate a screen.
 
@@ -587,24 +578,6 @@ def risk_scale_rail_html(score: int, risk_bands: list) -> str:
     )
     return (f"<div class='bsx-scale-track'>{ticks}{marker}</div>"
              f"<div class='bsx-scale-labels'>{labels}</div>")
-
-
-def audit_timeline_html(records: list[dict], limit: int = 8) -> str:
-    if not records:
-        return "<p style='color:var(--text-3);font-size:0.85rem;'>No events logged yet.</p>"
-    items = []
-    for i, r in enumerate(reversed(records[-limit:])):
-        head_cls = " head" if i == 0 else ""
-        ts = r.get("timestamp", "--")
-        title = f"Case {r.get('case_id', '?')} screened — {r.get('band', '?')} ({r.get('score', '?')}/100)"
-        this_hash = r.get("this_hash", "")
-        items.append(
-            f"<div class='bsx-timeline-item{head_cls}'><div class='bsx-timeline-dot'></div>"
-            f"<div class='bsx-timeline-ts'>{ts}</div>"
-            f"<div class='bsx-timeline-title'>{title}</div>"
-            f"<div class='bsx-timeline-hash'>HASH: {this_hash[:24]}&hellip;</div></div>"
-        )
-    return f"<div class='bsx-timeline'>{''.join(items)}</div>"
 
 
 # ------------------------------------------------------------------------
