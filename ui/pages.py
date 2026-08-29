@@ -467,10 +467,18 @@ def render_case() -> None:
 
             with st.container():
                 st.markdown("<div class='bsx-tier-head'>Score contributions</div>", unsafe_allow_html=True)
-                max_weight = max(policy["risk_weights"].values())
                 weighted_fails = sorted(
                     (s for s in verdict.signals if s.severity == Severity.FAIL and s.weight > 0),
                     key=lambda s: -s.weight)
+                # The ruler must fit the largest bar actually on screen, not
+                # just policy.yaml's own weights: a crypto manifest failure
+                # carries weight=100 (core/crypto/manifest.py), defined in
+                # code rather than the YAML, and can exceed every value in
+                # policy["risk_weights"] (max 30). Using policy's max alone
+                # would clamp a 100-weight bar to the same width as a
+                # 30-weight one -- correct value, misleading proportion.
+                max_weight = max([*policy["risk_weights"].values()],
+                                   *(s.weight for s in weighted_fails), default=1)
                 meters = "".join(
                     screens.meter_row_html(screens.finding_heading(s.check), s.weight, max_weight,
                                              tone="red" if s.weight >= max_weight * 0.6 else "amber")
@@ -480,6 +488,10 @@ def render_case() -> None:
                              unsafe_allow_html=True)
                 st.markdown(f"<div class='bsx-contrib-total'><span>Total score</span>"
                              f"<span class='amt'>{total}</span></div>", unsafe_allow_html=True)
+                if total != verdict.score:
+                    st.caption(f"The additive total above ({total}) and the verdict score "
+                                f"({verdict.score}) differ because the verdict was capped or overridden "
+                                f"-- see the note above the document, and core/risk.py, for which rule applied.")
 
         with st.container():
             st.markdown("<div class='bsx-tier-head'>Pipeline log</div>", unsafe_allow_html=True)
