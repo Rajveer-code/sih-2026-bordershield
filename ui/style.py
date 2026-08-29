@@ -240,6 +240,7 @@ div[data-testid="stVerticalBlockBorderWrapper"] {
   .bsx-ring svg .bsx-arc { animation: none !important; stroke-dashoffset: var(--dash-end, 0) !important; }
   .bsx-decided { animation: none !important; }
   .bsx-meter-fill { animation: none !important; transform: scaleX(1) !important; }
+  .bsx-pipeline-log .ln { animation: none !important; opacity: 1 !important; }
 }
 
 /* ---- sidebar: a quiet rail. Navigation, not a feature. ---- */
@@ -435,7 +436,8 @@ section[data-testid="stSidebar"] .stButton > button p { font-family: inherit !im
 .st-key-scn_face, .st-key-scn_sig {
   background: var(--surface-lowest) !important; border: 1px solid var(--line) !important;
   border-radius: var(--radius-lg) !important; padding: 1.1rem 1.2rem 0.9rem 1.2rem !important;
-  transition: background-color var(--dur-fast) var(--ease-out), border-color var(--dur-fast) var(--ease-out);
+  transition: background-color var(--dur-fast) var(--ease-out), border-color var(--dur-fast) var(--ease-out),
+              border-left-width var(--dur-fast) var(--ease-out);
   animation: bsx-rise var(--dur) var(--ease-out) backwards;
 }
 .bsx-scenario-head { display:flex; justify-content:space-between; align-items:center; margin-bottom: 0.7rem; }
@@ -471,13 +473,16 @@ section[data-testid="stSidebar"] .stButton > button p { font-family: inherit !im
   color: var(--text-3) !important; opacity: 1 !important;
 }
 @media (hover: hover) and (pointer: fine) {
-  .st-key-scn_dob:hover, .st-key-scn_photo:hover, .st-key-scn_sig:hover { background: var(--amber-bg) !important; }
+  .st-key-scn_dob:hover, .st-key-scn_photo:hover, .st-key-scn_sig:hover {
+    background: var(--amber-bg) !important; border-color: var(--amber) !important; border-left-width: 4px !important; }
   .st-key-scn_dob:hover .bsx-scenario-layer, .st-key-scn_photo:hover .bsx-scenario-layer,
   .st-key-scn_sig:hover .bsx-scenario-layer { color: var(--amber); border-color: var(--amber-line); }
-  .st-key-scn_recapture:hover, .st-key-scn_face:hover { background: var(--red-bg) !important; }
+  .st-key-scn_recapture:hover, .st-key-scn_face:hover {
+    background: var(--red-bg) !important; border-color: var(--red) !important; border-left-width: 4px !important; }
   .st-key-scn_recapture:hover .bsx-scenario-layer, .st-key-scn_face:hover .bsx-scenario-layer {
     color: var(--red); border-color: var(--red-line); }
-  .st-key-scn_genuine:hover { background: var(--green-bg) !important; }
+  .st-key-scn_genuine:hover {
+    background: var(--green-bg) !important; border-color: var(--green) !important; border-left-width: 4px !important; }
   .st-key-scn_genuine:hover .bsx-scenario-layer { color: var(--green); border-color: var(--green-line); }
   .st-key-scn_genuine .stButton button:hover, .st-key-scn_dob .stButton button:hover,
   .st-key-scn_photo .stButton button:hover, .st-key-scn_recapture .stButton button:hover,
