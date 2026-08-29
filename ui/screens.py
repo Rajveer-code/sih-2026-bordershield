@@ -5,18 +5,10 @@ it never reaches into st.session_state or the filesystem itself.
 """
 from __future__ import annotations
 
-from core.crypto import ledger as ledger_module
 from core.risk import traffic_light
-from core.types import Band, Tier, Verdict
+from core.types import Tier, Verdict
 
 _TIER_ORDER = [Tier.CRYPTO, Tier.RULES, Tier.FORENSICS, Tier.BIOMETRIC]
-_TIER_LABEL = {
-    Tier.CRYPTO: "T0 · Cryptographic proof",
-    Tier.RULES: "T1 · Deterministic structure",
-    Tier.FORENSICS: "T2 · Forensic ML (advisory)",
-    Tier.BIOMETRIC: "T2 · Biometric (advisory)",
-}
-_SEVERITY_ICON = {"pass": "✓", "fail": "✕", "weak": "⚠"}
 
 
 def crypto_note(verdict: Verdict) -> str | None:
@@ -32,7 +24,7 @@ def crypto_note(verdict: Verdict) -> str | None:
 # contract as above: pure functions, data in, markup out, never touch
 # session_state or the filesystem.
 
-_BAND_HEX = {"LOW": "#4caf7d", "MEDIUM": "#d89b3c", "HIGH": "#d89b3c", "CRITICAL": "#d9564c"}
+_BAND_HEX = {"LOW": "#166534", "MEDIUM": "#92400e", "HIGH": "#92400e", "CRITICAL": "#ba1a1a"}
 _LIGHT_CLASS = {"GREEN": "green", "AMBER": "amber", "RED": "red"}
 _LIGHT_PILL_TEXT = {"GREEN": "CLEARED", "AMBER": "REVIEW", "RED": "CRITICAL"}
 
@@ -83,16 +75,6 @@ def hero_html() -> str:
     produced live elsewhere in the console."""
     return """
     <div class="bsx-hero">
-      <div class="bsx-orb" aria-hidden="true">
-        <span class="halo"></span>
-        <span class="bezel"></span>
-        <span class="ticks"></span>
-        <span class="scan"></span>
-        <span class="orbit orbit-a"></span>
-        <span class="orbit orbit-b"></span>
-        <span class="orbit orbit-c"></span>
-        <span class="sphere"></span>
-      </div>
       <div class="bsx-hero-eyebrow">PS 26188 &middot; Ministry of Home Affairs &middot; Sashastra Seema Bal</div>
       <h1 class="bsx-hero-title">BorderShield<span class="dim"> AI</span></h1>
       <p class="bsx-hero-thesis">Everyone else builds a classifier.<br>
@@ -182,6 +164,132 @@ def metric_strip_html(cells: list[str]) -> str:
     unrelated numbers equal visual weight and read as dashboard filler; a
     single strip divided by hairlines reads as one instrument panel."""
     return f"<div class='bsx-metric-strip'>{''.join(cells)}</div>"
+
+
+def status_card_html(label: str, value: str, pill: tuple[str, str] | None = None, sub: str = "") -> str:
+    """One bordered card in the System Status / Command Center status row.
+    `pill` is (state, text) with state in {"ok","bad","neutral"} -- a small
+    dotted chip, e.g. ("ok", "LOADED") or ("bad", "MISSING"). Every caller
+    must derive `value`/`pill` from a real check (file existence, a loaded
+    cert, a chain-verify result) -- this function has no opinion of its
+    own about what's true, it only lays out what it's given."""
+    pill_html = ""
+    if pill:
+        state, text = pill
+        pill_html = f"<span class='bsx-status-pill {state}'><span class='dot'></span>{text}</span>"
+    sub_html = f"<div class='sub'>{sub}</div>" if sub else ""
+    return (f"<div class='bsx-status-card'><div class='head'>"
+            f"<div class='label'>{label}</div>{pill_html}</div>"
+            f"<div class='value'>{value}</div>{sub_html}</div>")
+
+
+def status_grid_html(cards: list[str]) -> str:
+    """Wraps pre-rendered status_card_html cells into the bordered grid."""
+    return f"<div class='bsx-status-grid'>{''.join(cards)}</div>"
+
+
+def scenario_card_head_html(scenario_id: str, layer: str, title: str, description: str) -> str:
+    """The markup portion of an attack-wall scenario card: id chip, the
+    real Trust Ladder tier that catches it, title, description. The
+    card's action is a real st.button rendered separately in the same
+    st.container (see ui/pages.py) -- raw HTML from one st.markdown call
+    cannot parent a Streamlit widget, so the rich description and the
+    clickable action are two elements sharing one bordered container
+    rather than one HTML block trying to be both."""
+    return (f"<div class='bsx-scenario-head'>"
+            f"<span class='bsx-scenario-id'>{scenario_id}</span>"
+            f"<span class='bsx-scenario-layer'>{layer}</span></div>"
+            f"<div class='bsx-scenario-title'>{title}</div>"
+            f"<div class='bsx-scenario-desc'>{description}</div>")
+
+
+def meter_row_html(label: str, weight: int, max_weight: int, tone: str = "red") -> str:
+    """One risk-contribution row with a real bar. Width is weight against
+    max_weight -- the largest single weight in policy.yaml's risk_weights,
+    passed in by the caller -- not a share of the total score. That keeps
+    every bar on the same fixed ruler: a signal worth 30 always fills the
+    bar the same amount, however many other signals also fired."""
+    pct = max(0, min(100, round(100 * weight / max_weight))) if max_weight else 0
+    return (
+        f"<div class='bsx-meter-row {tone}'>"
+        f"<div class='top'><span class='lbl'>{label}</span><span class='amt'>+{weight}</span></div>"
+        f"<div class='bsx-meter-track'><div class='bsx-meter-fill {tone}' style='width:{pct}%;'></div></div>"
+        f"</div>"
+    )
+
+
+def audit_record_card_html(record: dict, index: int, is_head: bool = False) -> str:
+    """One ledger record as a bordered card: a real record number (its
+    1-based position in read order -- the ledger itself has no separate
+    record-number field), the real timestamp, a title/body built from the
+    actual screening result, and the real prev/this hash pair the chain
+    is built from. Nothing here is a fabricated event description."""
+    case_id = record.get("case_id", "?")
+    band = record.get("band", "?")
+    score = record.get("score", "?")
+    finding = record.get("finding", "No findings")
+    ts = record.get("timestamp", "--")
+    prev_hash = record.get("prev_hash", "")
+    this_hash = record.get("this_hash", "")
+    document = record.get("document", "UTO Passport")
+    title = f"Case {case_id} screened &mdash; {document}"
+    body = f"{finding} Risk band: <b>{band}</b> ({score}/100)."
+    head_cls = " head" if is_head else ""
+    return f"""
+    <div class="bsx-audit-card{head_cls}">
+      <div class="top"><span class="rec">RECORD #{index:04d}</span><span>{ts}</span></div>
+      <div class="title">{title}</div>
+      <div class="body">{body}</div>
+      <div class="hashes">
+        <div class="hrow"><span class="k">Prev hash</span><span class="v">{prev_hash}</span></div>
+        <div class="hrow"><span class="k">This hash</span><span class="v">{this_hash}</span></div>
+      </div>
+    </div>
+    """
+
+
+def _fuse_line(verdict: Verdict) -> str:
+    """Reconstructs the exact decision core/risk.py made, from the verdict
+    alone -- never a second, parallel calculation that could drift from
+    the real one. Mirrors risk.py's three cases in the same order it
+    checks them (crypto override, then the T1 rules floor, then the
+    ordinary additive band)."""
+    from core.types import Severity
+    fails = [s for s in verdict.signals if s.severity == Severity.FAIL]
+    raw = max(0, min(100, sum(s.weight for s in fails)))
+    band_txt = getattr(verdict.band, "value", verdict.band)
+    if verdict.crypto_override:
+        return "FUSE   crypto_valid=False &rarr; CRITICAL 100  (T0 override: signature/manifest invalid)"
+    rules_failed = any(s.tier == Tier.RULES for s in fails)
+    if rules_failed:
+        return (f"FUSE   raw_score={raw}  rules_fail=True &rarr; "
+                f"{band_txt} {verdict.score}  (T1 override floor: 76)")
+    return f"FUSE   raw_score={raw} &rarr; {band_txt} {verdict.score}  ({verdict.action})"
+
+
+def pipeline_log_html(verdict: Verdict) -> str:
+    """An honest terminal replay of the actual decision: one line per
+    signal from verdict.signals, in the same tier order core/risk.py
+    resolves them, closing on the real fusion line. Every character here
+    traces to a Signal or to risk.py's own override logic -- nothing is
+    invented for effect. Dark inset by design; see ui/style.py's module
+    docstring for why a terminal needs its own on-dark colour variants."""
+    from core.types import Severity
+    lines = []
+    for tier in _TIER_ORDER:
+        for s in (sig for sig in verdict.signals if sig.tier == tier):
+            sev_cls = s.severity.value
+            sev_txt = s.severity.value.upper()
+            tag = f"[{_TIER_CODE[tier]}] {tier.value.upper()}"
+            msg = f"  {s.message}" if s.severity != Severity.PASS else ""
+            lines.append(
+                f"<span class='ln'><span class='tag'>{tag:<16}</span>"
+                f"<span class='txt'>{s.check:<30}</span>"
+                f"<span class='{sev_cls}'>{sev_txt:<6}</span>"
+                f"<span class='txt'>{msg}</span></span>"
+            )
+    lines.append(f"<span class='ln fuse'>{_fuse_line(verdict)}</span>")
+    return f"<div class='bsx-pipeline-log'>{''.join(lines)}</div>"
 
 
 def recent_cases_table_html(records: list[dict], limit: int = 8) -> str:
@@ -608,23 +716,7 @@ def realdoc_confidence_dial_html(steps: list) -> str:
              f"result. The rest were attempted but inconclusive.</p>")
 
 
-def realdoc_confidence_html(steps: list) -> str:
-    """A simple, honest completeness measure: how many of the ladder's
-    steps reached a definitive VERIFIED/FAILED result versus how many
-    were REVIEW (attempted, inconclusive) or NOT_APPLICABLE (correctly
-    skipped). Distinct from the risk score -- a document can score LOW
-    with low confidence (little was actually determinable) just as
-    easily as with high confidence (everything ran clean)."""
-    definitive = sum(1 for s in steps if s.status in ("VERIFIED", "FAILED"))
-    applicable = sum(1 for s in steps if s.status != "NOT_APPLICABLE")
-    pct = round(100 * definitive / applicable) if applicable else 0
-    return (f"<div class='bsx-stat'><div class='label'>Evidence Confidence</div>"
-            f"<div class='value'>{definitive}/{applicable}<span class='sub'>applicable checks reached a "
-            f"definitive result ({pct}%)</span></div></div>")
-
-
-_REALDOC_BAND_HEX = {"LOW": "#4caf7d", "MEDIUM": "#d89b3c", "HIGH": "#d89b3c", "REVIEW": "#878d93"}
-_REALDOC_BAND_CLS = {"LOW": "green", "MEDIUM": "amber", "HIGH": "amber", "REVIEW": ""}
+_REALDOC_BAND_HEX = {"LOW": "#166534", "MEDIUM": "#92400e", "HIGH": "#92400e", "REVIEW": "#75777c"}
 
 
 def realdoc_verdict_card_html(verdict) -> str:
