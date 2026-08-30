@@ -795,15 +795,31 @@ def realdoc_verdict_card_html(verdict) -> str:
     else:
         label = f"{verdict.band} risk"
 
-    # "What was NOT assessed" -- read off the REAL ladder, never a fixed
-    # list, so it can't drift out of step with what actually ran.
-    unassessed = [s.name for s in getattr(verdict, "steps", []) if s.status in ("REVIEW", "NOT_APPLICABLE")]
-    limits = "".join(f"<li>{name}</li>" for name in unassessed)
+    # Both halves of the honest answer, each read off the REAL ladder --
+    # never a fixed list, so neither can drift out of step with what
+    # actually ran. Showing only the limitations was half the story: an
+    # officer also needs to see, at a glance, what genuinely WAS
+    # established, or the screen reads as "nothing worked".
+    steps = getattr(verdict, "steps", [])
+    verified = [s.name for s in steps if s.status == "VERIFIED"]
+    review = [s.name for s in steps if s.status == "REVIEW"]
+    not_applicable = [s.name for s in steps if s.status == "NOT_APPLICABLE"]
+
+    ver_items = "".join(f"<li class='yes'>{n}</li>" for n in verified) or \
+        "<li class='none'>Nothing could be positively established</li>"
+    # REVIEW and NOT APPLICABLE are different claims and get different
+    # marks: "we looked and can't say" vs "this doesn't apply here".
+    gap_items = "".join(f"<li class='review'>{n} &mdash; advisory only, no decisive call</li>" for n in review)
+    gap_items += "".join(f"<li class='na'>{n}</li>" for n in not_applicable)
+    gap_items += "<li class='na'>Issuer authenticity &mdash; no registry lookup exists for uploaded documents</li>"
+
     limits_block = (
-        f"<div class='bsx-limits'><div class='k'>Not established by this check</div>"
-        f"<ul>{limits}<li>Issuer authenticity &mdash; no registry lookup exists for uploaded documents</li></ul>"
-        f"<p>A score of {verdict.score} means no weighted signal counted against this document. "
-        f"It is not a confirmation that the document was genuinely issued.</p></div>"
+        f"<div class='bsx-split'>"
+        f"<div class='bsx-split-col'><div class='k ok'>What we established</div><ul>{ver_items}</ul></div>"
+        f"<div class='bsx-split-col'><div class='k'>What we could not establish</div><ul>{gap_items}</ul></div>"
+        f"</div>"
+        f"<div class='bsx-limits'><p>A score of {verdict.score} means no weighted signal counted against "
+        f"this document. <b>It is not a confirmation that the document was legitimately issued.</b></p></div>"
     )
 
     return f"""
