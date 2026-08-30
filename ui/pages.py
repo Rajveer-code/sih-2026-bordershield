@@ -458,15 +458,20 @@ def render_case() -> None:
     with col_right:
         with st.container():
             st.markdown("<div class='bsx-tier-head'>Trust ladder</div>", unsafe_allow_html=True)
+            st.caption("Four checks, in order of authority. Each row states the question it asks, "
+                        "then what it found on this document.")
             st.markdown(screens.verification_sequence_html(verdict), unsafe_allow_html=True)
 
         if any(s.severity == Severity.FAIL for s in verdict.signals):
             with st.container():
                 st.markdown("<div class='bsx-tier-head'>Findings</div>", unsafe_allow_html=True)
+                st.caption("Only what actually went wrong on this document — not a list of everything "
+                            "the system is capable of checking.")
                 st.markdown(screens.finding_cards_html(verdict), unsafe_allow_html=True)
 
             with st.container():
                 st.markdown("<div class='bsx-tier-head'>Score contributions</div>", unsafe_allow_html=True)
+                st.caption("How much each finding added to the risk score.")
                 weighted_fails = sorted(
                     (s for s in verdict.signals if s.severity == Severity.FAIL and s.weight > 0),
                     key=lambda s: -s.weight)
@@ -559,6 +564,17 @@ def render_audit() -> None:
                 ("broken", f"Chain broken at record #{broken_at + 1:04d}")
             st.markdown(f"<span class='bsx-chain-pill {pill_cls}'>{pill_txt}</span>", unsafe_allow_html=True)
             st.write("")
+            # States what the chain does AND does not prove. Without the
+            # second half an officer can reasonably read "intact" as "these
+            # documents are genuine" -- it means only that our own record
+            # of the screenings has not been edited afterwards.
+            st.markdown(
+                "<div class='bsx-limits'><div class='k'>What this proves</div>"
+                "<p>Each record carries a fingerprint of the one before it, so editing any stored "
+                "record breaks the chain from that point on and the verifier names it.<br><br>"
+                "<b>It does not prove any document is authentic.</b> It proves our record of the "
+                "screening has not been altered after the fact.</p></div>", unsafe_allow_html=True)
+            st.write("")
             if st.button("Re-verify chain", icon=":material/verified_user:", use_container_width=True,
                           key="verify_chain_btn"):
                 st.rerun()
@@ -597,12 +613,18 @@ def render_status() -> None:
 
     models_ready = all(m["exists"] for m in models)
     st.markdown(screens.status_grid_html([
+        # Named for what they DO, not for the artifact they happen to be.
+        # "Model artifacts 4/4" told a judge nothing; "Biometric engine
+        # READY" does, and the file-level detail is still one panel below.
         screens.status_card_html(
-            "Model artifacts", f"{sum(1 for m in models if m['exists'])}/{len(models)}",
-            pill=("ok", "ALL PRESENT") if models_ready else ("bad", "MISSING FILES")),
+            "Biometric engine", "READY" if models_ready else "INCOMPLETE",
+            pill=("ok", f"{sum(1 for m in models if m['exists'])}/{len(models)} FILES") if models_ready
+            else ("bad", "MISSING FILES"),
+            sub="Face detection + matching"),
         screens.status_card_html(
-            "Signing PKI", "INITIALIZED" if pki else "NOT SET UP",
-            pill=("ok", "ECDSA P-256") if pki else ("neutral", "LAZY INIT")),
+            "Cryptographic engine", "READY" if pki else "NOT SET UP",
+            pill=("ok", "ECDSA P-256") if pki else ("neutral", "STARTS ON FIRST USE"),
+            sub="Signing + signature checks"),
         screens.status_card_html(
             "Ledger chain", "INTACT" if chain_ok else f"BROKEN AT #{broken_at}",
             pill=("ok", f"{len(records)} RECORDS") if chain_ok else ("bad", "TAMPERED")),
@@ -617,7 +639,10 @@ def render_status() -> None:
 
     with col_a:
         with st.container():
-            st.markdown("<div class='bsx-tier-head'>Model artifacts</div>", unsafe_allow_html=True)
+            st.markdown("<div class='bsx-tier-head'>Biometric engine — files on disk</div>",
+                         unsafe_allow_html=True)
+            st.caption("The actual face-detection and face-matching model files this app loaded, "
+                        "with their real sizes read off this machine.")
             row_parts = []
             for m in models:
                 size_txt = f"{m['size_bytes']:,} B" if m["exists"] else "NOT FOUND"
@@ -627,7 +652,8 @@ def render_status() -> None:
             st.markdown(f"<div class='bsx-datalist'>{''.join(row_parts)}</div>", unsafe_allow_html=True)
 
         with st.container():
-            st.markdown("<div class='bsx-tier-head'>Demo signing authority</div>", unsafe_allow_html=True)
+            st.markdown("<div class='bsx-tier-head'>Cryptographic engine — signing authority</div>",
+                         unsafe_allow_html=True)
             if pki is None:
                 st.caption("No PKI on disk yet -- created automatically the first time a document is "
                             "signed or verified (core/crypto/pki.py::load_or_create_pki).")
