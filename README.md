@@ -81,6 +81,20 @@ T2  Biometric face match      caps at HIGH, never CRITICAL alone   core/face/
 
 Full rationale for the fusion rule (and the two real bugs it took to get right) is in `core/risk.py`'s own docstring — read it before changing anything there.
 
+### UI language rules (do not regress these)
+
+The console had a real readability failure: it printed a tier's *standing description* and that tier's *per-case result* in the same slot, so "capture shows moiré/blockiness consistent with a screen recapture" read as a finding about the document on screen when it was a description of what the layer looks for. The fix is structural and must be preserved.
+
+| Rule | Where it lives |
+|---|---|
+| Every ladder row renders **two labelled lines**: `Checks:` (the constant plain-English question, never changes with the result) and `This case:` (the actual outcome). | `screens._TIER_QUESTION`, `screens._REALDOC_QUESTION` |
+| Correct-but-unreadable wording is mapped to plain English, and the **original is kept** behind a `Technical detail` disclosure — demoted, never deleted. | `screens.plain_message()`, `.bsx-tech` |
+| A real-document score of 0 renders **"No adverse signals"**, never "clean"/"genuine"/"authentic". Issuer authenticity is not established by this system, so that claim is unsupported. | `screens.realdoc_verdict_card_html()` |
+| Real-document results show **both halves**: what was established, and what could not be — each read off the live ladder, never a fixed list. | `.bsx-split` |
+| `REVIEW` is neither pass nor fail and says *why* it is a review (advisory layer, costs no risk points). | `screens._REALDOC_REVIEW_REASON` |
+| Audit Trail states what the chain proves **and what it does not** (it never proves document authenticity). | `pages.render_audit()` |
+| Officer-facing screens carry no file paths or type names. System Status is the deliberate exception — it exists for the technical reviewer. | — |
+
 ### Folder map
 
 | Path | What's in it |
