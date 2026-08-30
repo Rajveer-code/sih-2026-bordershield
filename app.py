@@ -64,7 +64,7 @@ with st.sidebar:
 # implementation detail and have already renamed across releases.
 st.markdown(
     f"<style>.st-key-navbtn_{st.session_state.page} button {{ "
-    f"color:var(--text) !important; border-left-color:var(--primary) !important; "
+    f"color:var(--text) !important; border-left-color:var(--accent) !important; "
     f"font-weight:600 !important; }}</style>",
     unsafe_allow_html=True,
 )
