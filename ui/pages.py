@@ -82,8 +82,11 @@ def render_dashboard() -> None:
 
     st.markdown(screens.topbar_html(
         "Screening command",
-        "Every case below ran through the full Trust Ladder against a real generated document. "
-        "Nothing on this screen is staged.",
+        # Precise about WHICH half is real. "Nothing here is staged" was
+        # true of the processing and false of the documents, and a judge
+        # is entitled to read it the stricter way.
+        "Every scenario runs through the same live verification pipeline the app uses for any "
+        "document. The test documents themselves are synthetic and deliberately controlled.",
         eyebrow="PS 26188 · Ministry of Home Affairs · Sashastra Seema Bal",
         chain_ok=chain_ok), unsafe_allow_html=True)
 
@@ -120,8 +123,9 @@ def render_dashboard() -> None:
             "<span style='font-family:var(--font-mono);font-size:0.74rem;color:var(--text-3);"
             "border:1px solid var(--line);border-radius:2px;padding:0.2rem 0.5rem;letter-spacing:0.12em;'>"
             "DEMO ENVIRONMENT</span></div>", unsafe_allow_html=True)
-        st.caption("Each card forges a real document, runs the full Trust Ladder, and writes a hash-chained "
-                    "case. LAYER names the real tier (core/types.py::Tier) that should catch it.")
+        st.caption("Six controlled experiments, not six travellers. Each card builds a synthetic document "
+                    "with one specific thing wrong with it, screens it through the real pipeline, and writes "
+                    "a real case record. The tag on each card names the layer that should catch it.")
         st.write("")
         cols = st.columns(6)
         specs = [
@@ -494,9 +498,9 @@ def render_case() -> None:
                 st.markdown(f"<div class='bsx-contrib-total'><span>Total score</span>"
                              f"<span class='amt'>{total}</span></div>", unsafe_allow_html=True)
                 if total != verdict.score:
-                    st.caption(f"The additive total above ({total}) and the verdict score "
-                                f"({verdict.score}) differ because the verdict was capped or overridden "
-                                f"-- see the note above the document, and core/risk.py, for which rule applied.")
+                    st.caption(f"The findings above add up to {total}, but the verdict is "
+                                f"{verdict.score}. That is not an error: a decisive check overrode the "
+                                f"running total. The note above the document says which one.")
 
         with st.container():
             st.markdown("<div class='bsx-tier-head'>Pipeline log</div>", unsafe_allow_html=True)
