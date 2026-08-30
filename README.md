@@ -18,29 +18,24 @@ Three findings drive every design decision here (full sources in `docs/01-RESEAR
 ## Quickstart
 
 ```powershell
-# 1. Environment
+# 1. Clone and enter the repo
+git clone https://github.com/Rajveer-code/sih-2026-bordershield.git
+cd sih-2026-bordershield
+
+# 2. Environment
 python -m venv venv
 .\venv\Scripts\pip install -r requirements.txt
 
-# 2. Face-recognition models (OpenCV Zoo, Git-LFS-backed -- raw.githubusercontent.com
-#    serves a useless ~130-byte pointer file for these, you need the media host):
-mkdir models -Force
-Invoke-WebRequest -Uri "https://media.githubusercontent.com/media/opencv/opencv_zoo/main/models/face_detection_yunet/face_detection_yunet_2023mar.onnx" -OutFile "models\face_detection_yunet_2023mar.onnx"
-Invoke-WebRequest -Uri "https://media.githubusercontent.com/media/opencv/opencv_zoo/main/models/face_recognition_sface/face_recognition_sface_2021dec.onnx" -OutFile "models\face_recognition_sface_2021dec.onnx"
+# 3. Verify the build
+.\venv\Scripts\python.exe -m pytest tests/ -q      # expect 108 passed
 
-# 3. Generate the synthetic document corpus (genuine doc, 3 attacks, crypto signatures)
-.\venv\Scripts\python.exe -m synth.passport
-.\venv\Scripts\python.exe -m synth.forge
-.\venv\Scripts\python.exe -m synth.sign
-
-# 4. Verify the build
-.\venv\Scripts\python.exe -m pytest tests/ -q      # expect 81 passed
-
-# 5. Run the console
+# 4. Run the console
 .\venv\Scripts\python.exe -m streamlit run app.py
 ```
 
-Open `http://localhost:8501`. Command Center → **Attack Wall** → click any of the 6 scenario cards. Each one runs a real generated document through the full pipeline and logs a real, hash-chained case — nothing on screen is staged.
+Nothing else to set up. The demo passport, the 3 forged attacks, and the AI models
+(`models/*.onnx`, `models/*.npz`) are already committed to the repo — a fresh clone
+works immediately, no manual downloads and no font-dependent regeneration step.
 
 ## Deploying
 
