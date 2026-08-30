@@ -4,13 +4,23 @@ __pycache__/
 .env
 .streamlit/secrets.toml
 
-# All generated/downloaded artifacts -- everything here is reproducible
-# from a script (synth/passport.py, synth/forge.py, core/glyphs.py,
-# core/viz_ocr.py) or a documented download (models/*.onnx). See the
-# security review that caught data/pki/ specifically: it holds real,
-# unencrypted demo signing keys and must never be committed.
-data/
-models/
+# Generated/downloaded artifacts. Two subsets are committed despite that,
+# for deploy reliability (Streamlit Community Cloud clones a fresh repo
+# with no local generation step, and synth/*.py's text rendering hardcodes
+# C:\Windows\Fonts paths -- unusable on that Linux container even if we
+# tried to regenerate on boot): the demo corpus (data/documents, data/forged)
+# and the model/glyph files below. Everything else stays ignored --
+# data/pki/ specifically holds real, unencrypted demo signing keys and must
+# never be committed; data/portraits/ holds real consenting-person face
+# photos; results/ is session-local ledger output.
+data/*
+!data/documents/
+!data/documents/**
+!data/forged/
+!data/forged/**
+models/*
+!models/*.onnx
+!models/*.npz
 results/
 
 *.log
