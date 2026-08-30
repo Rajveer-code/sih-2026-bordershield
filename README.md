@@ -192,6 +192,15 @@ It is **capability-aware**: every check only runs when the document actually sup
 
 ## Read next
 
+**Start here if you're on the team, not writing code:**
+
+| Doc | Who it's for |
+|---|---|
+| [`docs/team/dossier.html`](docs/team/dossier.html) | **Everyone.** Answers any question a judge can ask, in plain English — what the project is, the three questions people mix up, what each screen shows, easy and hard question banks, glossary. Read once before Round 2. |
+| [`docs/team/run-of-show.html`](docs/team/run-of-show.html) | **Whoever presents.** What each screen is, then the click-by-click demo script: what to click, what to say, how long, and what to do if something breaks live. |
+
+Both are self-contained HTML — open them in any browser, no server needed.
+
 | Doc | What it settles |
 |---|---|
 | `docs/01-RESEARCH.md` | The evidence base — every claim above, with its source. |
