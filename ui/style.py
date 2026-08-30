@@ -489,19 +489,69 @@ section[data-testid="stSidebar"] .stButton > button p { font-family: inherit !im
 .st-key-scn_recapture { animation-delay: 120ms; }
 .st-key-scn_face { animation-delay: 160ms; }
 .st-key-scn_sig { animation-delay: 200ms; }
-.bsx-scenario-head { display:flex; justify-content:space-between; align-items:center; margin-bottom: 0.7rem; }
+/* Stacked, NOT a space-between row. These six cards sit in st.columns(6),
+   so each is ~200px wide; a side-by-side numeral + layer badge overflowed
+   the card outright once the numeral grew to 1.6rem -- "T0 CRYPTO / T2
+   FORENSICS" alone needs more width than the badge had left. Stacking is
+   the fix that holds at every column width instead of only wide ones. */
+.bsx-scenario-head { display:flex; flex-direction: column; align-items: flex-start;
+  gap: 0.45rem; margin-bottom: 0.7rem; }
 /* index-numeral treatment: the real scenario id (SCN_01..SCN_06, already
    passed in -- not a fabricated counter) rendered as a small ghost mark
    instead of ordinary label text, so each card reads as a numbered
    position in a sequence rather than one of six interchangeable boxes. */
 .bsx-scenario-id { font-family: var(--font-mono); font-size: 1.6rem; font-weight: 700;
   color: var(--accent); opacity: 0.28; letter-spacing: -0.02em; line-height: 1; }
-.bsx-scenario-layer { font-family: var(--font-mono); font-size: 0.75rem; font-weight: 600;
-  letter-spacing: 0.06em; text-transform: uppercase; color: var(--secondary);
-  border: 1px solid var(--line); border-radius: var(--radius-sm); padding: 0.15rem 0.45rem; }
+/* white-space:normal so a two-tier label wraps INSIDE its border instead
+   of running past it; max-width caps it to the card. */
+.bsx-scenario-layer { font-family: var(--font-mono); font-size: 0.72rem; font-weight: 600;
+  letter-spacing: 0.05em; text-transform: uppercase; color: var(--secondary);
+  border: 1px solid var(--line); border-radius: var(--radius-sm); padding: 0.2rem 0.45rem;
+  white-space: normal; line-height: 1.35; max-width: 100%; }
 .bsx-scenario-title { font-family: var(--font-head); font-weight: 700; font-size: 1.08rem;
   color: var(--text); letter-spacing: -0.01em; line-height: 1.25; }
-.bsx-scenario-desc { font-size: 0.88rem; line-height: 1.5; color: var(--text-3); margin-top: 0.5rem; min-height: 3.2em; }
+.bsx-scenario-desc { font-size: 0.88rem; line-height: 1.5; color: var(--text-3); margin-top: 0.5rem; }
+/* Equal-height cards with bottom-aligned buttons. The six descriptions are
+   genuinely different lengths, so a min-height fudge can't align them --
+   stretching each card to its column and pushing the button down with
+   margin-top:auto does, at any width. */
+/* The testid is stColumn, not "column" (checked against the running app;
+   an earlier guess at "column" silently matched nothing). Streamlit
+   stretches the columns themselves, but height:100% on the card alone
+   resolves against auto-height intermediate wrappers and collapses back
+   to content height -- so the whole chain
+   stColumn > stVerticalBlock > stLayoutWrapper > card needs stretching.
+   Scoped by :has(.st-key-scn_genuine) to the scenario row only, so no
+   other st.columns layout in the app is affected.
+
+   The column itself must NOT get height:100%: the row's height is
+   content-derived, so a percentage resolves against auto and collapses --
+   and worse, declaring any explicit height cancels the align-items:stretch
+   that was already going to size it correctly. Let the column stretch,
+   then fill inward from it, where the height IS definite. */
+div[data-testid="stHorizontalBlock"]:has(.st-key-scn_genuine) div[data-testid="stColumn"] {
+  align-self: stretch;
+}
+div[data-testid="stHorizontalBlock"]:has(.st-key-scn_genuine) div[data-testid="stColumn"] > div[data-testid="stVerticalBlock"],
+div[data-testid="stHorizontalBlock"]:has(.st-key-scn_genuine) div[data-testid="stLayoutWrapper"] {
+  height: 100%;
+}
+.st-key-scn_genuine, .st-key-scn_dob, .st-key-scn_photo, .st-key-scn_recapture,
+.st-key-scn_face, .st-key-scn_sig {
+  height: 100%; display: flex !important; flex-direction: column !important;
+}
+/* margin-top:auto has to sit on the card's DIRECT flex child, and that is
+   the stElementContainer wrapping the button -- not .stButton itself,
+   which is a grandchild and so has no auto-margin effect in the card's
+   flex context. Verified against the running DOM, not assumed. */
+.st-key-scn_genuine > [data-testid="stElementContainer"]:has(.stButton),
+.st-key-scn_dob > [data-testid="stElementContainer"]:has(.stButton),
+.st-key-scn_photo > [data-testid="stElementContainer"]:has(.stButton),
+.st-key-scn_recapture > [data-testid="stElementContainer"]:has(.stButton),
+.st-key-scn_face > [data-testid="stElementContainer"]:has(.stButton),
+.st-key-scn_sig > [data-testid="stElementContainer"]:has(.stButton) {
+  margin-top: auto !important;
+}
 /* Descendant selectors, not .stButton > button: a disabled button with a
    `help=` tooltip gets wrapped by Streamlit in an extra
    .stTooltipHoverTarget div, so the actual <button> is a GRANDCHILD of
@@ -717,6 +767,29 @@ button[kind="primary"]:hover { opacity: 0.85; }
 .bsx-limits ul { margin: 0 0 0.7rem 0; padding-left: 1.1rem; }
 .bsx-limits li { font-size: 0.88rem; color: var(--text-2); line-height: 1.5; margin-bottom: 0.25rem; }
 .bsx-limits p { font-size: 0.88rem; color: var(--text-3); margin: 0; line-height: 1.55; }
+.bsx-limits p b { color: var(--text); }
+
+/* The two-column honest answer: what WAS established beside what was not.
+   Side by side on purpose -- these are equal-weight halves of one result,
+   and stacking them made the second read as a footnote to the first. */
+.bsx-split { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 1px;
+  background: var(--line); border: 1px solid var(--line); border-radius: var(--radius-lg);
+  overflow: hidden; margin-top: 1rem; }
+.bsx-split-col { background: var(--surface-lowest); padding: 1rem 1.2rem; }
+.bsx-split-col .k { font-family: var(--font-mono); font-size: 0.72rem; letter-spacing: 0.1em;
+  text-transform: uppercase; color: var(--text-3); margin-bottom: 0.7rem; }
+.bsx-split-col .k.ok { color: var(--green); }
+.bsx-split-col ul { margin: 0; padding: 0; list-style: none; }
+.bsx-split-col li { font-size: 0.87rem; line-height: 1.5; margin-bottom: 0.4rem; padding-left: 1.4rem;
+  position: relative; color: var(--text-2); }
+.bsx-split-col li::before { position: absolute; left: 0; font-family: var(--font-mono); font-weight: 700; }
+/* Three distinct marks for three distinct claims -- a tick is not the
+   same statement as "advisory only", and neither is "does not apply". */
+.bsx-split-col li.yes::before { content: "\\2713"; color: var(--green); }
+.bsx-split-col li.review::before { content: "!"; color: var(--amber); }
+.bsx-split-col li.na::before { content: "\\25CB"; color: var(--text-3); }
+.bsx-split-col li.none::before { content: "\\25CB"; color: var(--text-3); }
+.bsx-split-col li.none { color: var(--text-3); font-style: italic; }
 .bsx-finding.advisory { border-left-color: var(--amber); }
 .bsx-finding.advisory .bsx-finding-head { color: var(--amber); }
 .bsx-compare-grid { display:grid; grid-template-columns: 1fr 1fr; gap: 0.5rem;
