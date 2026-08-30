@@ -477,8 +477,8 @@ def render_case() -> None:
                 # policy["risk_weights"] (max 30). Using policy's max alone
                 # would clamp a 100-weight bar to the same width as a
                 # 30-weight one -- correct value, misleading proportion.
-                max_weight = max([*policy["risk_weights"].values()],
-                                   *(s.weight for s in weighted_fails), default=1)
+                max_weight = max([*policy["risk_weights"].values(),
+                                   *(s.weight for s in weighted_fails)], default=1)
                 meters = "".join(
                     screens.meter_row_html(screens.finding_heading(s.check), s.weight, max_weight,
                                              tone="red" if s.weight >= max_weight * 0.6 else "amber")
