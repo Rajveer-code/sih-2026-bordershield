@@ -90,6 +90,11 @@ CSS = """
   --amber:#92400e;  --amber-line:rgba(146,64,14,.28);  --amber-bg:rgba(146,64,14,.08);
   --red:#ba1a1a;    --red-line:rgba(186,26,26,.30);    --red-bg:#ffdad6;
   --on-red-container:#93000a;
+  /* decorative-only accent, added for the premium polish pass. Pulled from
+     the user's own reference set (MEA India navy+saffron, Embassy of India
+     terracotta) -- never applied to anything a risk verdict renders, so it
+     cannot be mistaken for --amber. */
+  --accent:#c2410c; --accent-line:rgba(194,65,12,.28); --accent-bg:rgba(194,65,12,.08);
   /* terminal-only bright variants -- see module docstring. Used exclusively
      inside .bsx-pipeline-log, never on the light surface. */
   --green-on-dark:#4ade80; --amber-on-dark:#fbbf24; --red-on-dark:#f87171;
@@ -186,6 +191,14 @@ h1, h2, h3, h4, .stMarkdown h1, .stMarkdown h2, .stMarkdown h3 {
   font-family: var(--font-head) !important; letter-spacing: -0.02em; color: var(--text) !important;
 }
 p, span, div, label { color: var(--text); }
+/* every st.button wraps its label in its own <p>/<div> -- without this,
+   the rule above reaches straight past a button's own `color` (even
+   !important) and paints every button label near-black, regardless of
+   background. One rule here fixes the whole class, not just the primary
+   button where it was actually caught (see the button[kind="primary"]
+   comment below for the full explanation). Plain inherit, no !important
+   needed: `button p` beats a bare `p` on specificity alone. */
+button p, button span, button div, button label { color: inherit; }
 code, .stCode, .stJson, pre { font-family: var(--font-mono) !important; }
 [data-testid="stCaptionContainer"] { color: var(--text-3) !important; font-size:0.94rem; max-width:76ch; line-height:1.6; }
 hr { border-color: var(--line-soft) !important; }
@@ -232,7 +245,7 @@ div[data-testid="stVerticalBlockBorderWrapper"] {
 @media (prefers-reduced-motion: reduce) {
   .block-container > div > div > div[data-testid="stVerticalBlock"] > div,
   .bsx-verdict, .bsx-verdict-num, .bsx-spine-row, .bsx-metric, .bsx-finding,
-  .bsx-status-card, .bsx-audit-card,
+  .bsx-status-card, .bsx-audit-card, .bsx-ladder-row,
   .st-key-scn_genuine, .st-key-scn_dob, .st-key-scn_photo, .st-key-scn_recapture,
   .st-key-scn_face, .st-key-scn_sig {
     animation-name: bsx-fade !important;
@@ -332,6 +345,12 @@ section[data-testid="stSidebar"] .stButton > button p { font-family: inherit !im
     background: rgba(25,28,29,.32);
   }
   section[data-testid="stSidebar"][aria-expanded="false"] { display: none !important; }
+  .bsx-status-grid { grid-template-columns: 1fr !important; }
+  /* the 3.2rem clamp floor is wider than "BorderShield" fits on a 375px
+     viewport, so the browser force-wraps mid-word ("BorderShiel" / "d AI")
+     -- pre-existing, not introduced by this pass, fixed while touching
+     mobile CSS here anyway. */
+  .bsx-hero h1.bsx-hero-title { font-size: clamp(2.3rem, 10.5vw, 6rem) !important; }
 }
 
 :focus-visible { outline: none !important; box-shadow: 0 0 0 2px var(--bg), 0 0 0 3px var(--primary) !important; }
@@ -361,6 +380,20 @@ section[data-testid="stSidebar"] .stButton > button p { font-family: inherit !im
   display: flex; align-items: center; gap: 0.7rem;
 }
 .bsx-tier-head::after { content:""; flex:1; height:1px; background: var(--line-soft); }
+
+/* ---- registration-mark corner ticks: a forensic/blueprint signature
+   detail on the elements that anchor a screen (hero, the Command Center
+   status row). Diagonal pair, not all four corners -- reads as a
+   crop/registration mark without needing four pseudo-els. Not applied to
+   .bsx-ladder: that element already owns ::before for its spine line, and
+   a second ::before rule on the same class would just lose the cascade. */
+.bsx-ticks { position: relative; }
+.bsx-ticks::before, .bsx-ticks::after {
+  content: ""; position: absolute; width: 14px; height: 14px; pointer-events: none; opacity: 0.55;
+  border: 1px solid var(--accent);
+}
+.bsx-ticks::before { top: -1px; left: -1px; border-right: none; border-bottom: none; }
+.bsx-ticks::after { bottom: -1px; right: -1px; border-left: none; border-top: none; }
 
 /* ===================== COMMAND: the metric strip =====================
    One ruled strip, not N cards. Cells power up left-to-right. */
@@ -392,7 +425,12 @@ section[data-testid="stSidebar"] .stButton > button p { font-family: inherit !im
 /* ===================== system status cards (4-across) ================
    Bordered boxes, not a hairline strip -- Sovereign's "Bold Outlines"
    language. Each card states one real, checkable fact. */
-.bsx-status-grid { display:grid; grid-template-columns: repeat(auto-fit, minmax(230px, 1fr)); gap: 1px;
+/* asymmetric, not four equal cells -- the last card (Cases logged, the
+   most narratively important number) runs wider so the row reads as one
+   composition instead of four interchangeable tiles. Fixed columns need
+   an explicit mobile stack since they lose auto-fit's intrinsic reflow --
+   see the 640px override below. */
+.bsx-status-grid { display:grid; grid-template-columns: 1fr 1fr 1fr 1.6fr; gap: 1px;
   background: var(--line); border: 1px solid var(--line); border-radius: var(--radius-lg); overflow: hidden; }
 .bsx-status-card { background: var(--surface-lowest); padding: 1.2rem 1.3rem;
   animation: bsx-rise var(--dur) var(--ease-out) backwards; }
@@ -440,9 +478,24 @@ section[data-testid="stSidebar"] .stButton > button p { font-family: inherit !im
               border-left-width var(--dur-fast) var(--ease-out);
   animation: bsx-rise var(--dur) var(--ease-out) backwards;
 }
+/* entrance stagger -- these six were firing simultaneously (no delay), the
+   one motion gap this pass found: every other card grid in the app
+   staggers, this one didn't. Explicit per-selector delay, not nth-child:
+   each card is its own uniquely-keyed .st-key-scn_* class (see the
+   comment above), not siblings a structural selector can index. */
+.st-key-scn_genuine { animation-delay: 0ms; }
+.st-key-scn_dob { animation-delay: 40ms; }
+.st-key-scn_photo { animation-delay: 80ms; }
+.st-key-scn_recapture { animation-delay: 120ms; }
+.st-key-scn_face { animation-delay: 160ms; }
+.st-key-scn_sig { animation-delay: 200ms; }
 .bsx-scenario-head { display:flex; justify-content:space-between; align-items:center; margin-bottom: 0.7rem; }
-.bsx-scenario-id { font-family: var(--font-mono); font-size: 0.76rem; color: var(--text-3);
-  letter-spacing: 0.08em; }
+/* index-numeral treatment: the real scenario id (SCN_01..SCN_06, already
+   passed in -- not a fabricated counter) rendered as a small ghost mark
+   instead of ordinary label text, so each card reads as a numbered
+   position in a sequence rather than one of six interchangeable boxes. */
+.bsx-scenario-id { font-family: var(--font-mono); font-size: 1.6rem; font-weight: 700;
+  color: var(--accent); opacity: 0.28; letter-spacing: -0.02em; line-height: 1; }
 .bsx-scenario-layer { font-family: var(--font-mono); font-size: 0.75rem; font-weight: 600;
   letter-spacing: 0.06em; text-transform: uppercase; color: var(--secondary);
   border: 1px solid var(--line); border-radius: var(--radius-sm); padding: 0.15rem 0.45rem; }
@@ -506,8 +559,26 @@ div[data-testid="column"] .stButton > button [data-testid="stIconMaterial"] { fo
     border-color: var(--primary) !important; color: var(--text) !important; }
 }
 div[data-testid="column"] .stButton > button p { font-family: inherit !important; font-weight: inherit !important; letter-spacing: inherit; }
-button[kind="primary"] { background: var(--primary) !important; color: var(--on-primary) !important;
-  border: 1px solid var(--primary) !important; font-weight: 600 !important; }
+/* --accent, not --primary: black-on-black-adjacent CTAs read as "part of
+   the chrome", and this was the site's one real colour opportunity --
+   the button everyone's eye lands on first. --primary (pure black) stays
+   untouched everywhere else; this is a button-background-only change. */
+button[kind="primary"] { background: var(--accent) !important; color: var(--on-primary) !important;
+  border: 1px solid var(--accent) !important; font-weight: 600 !important; }
+/* REAL BUG, not just a colour choice: Streamlit wraps a button's label in
+   its own <p>/<div data-testid="stMarkdownContainer">, and the earlier
+   `p, span, div, label { color: var(--text) }` base rule (line ~188)
+   targets that inner <p> DIRECTLY -- inheritance from the button's own
+   `color` never gets a chance to apply, because a direct rule on an
+   element always wins over an inherited value regardless of !important
+   on the ancestor. Result: every type="primary" button's dark-grey label
+   was rendering the base near-black --text colour on top of a dark
+   button fill -- unreadable. `!important` here (unlike the ancestor's)
+   DOES win, because it's now competing against another declaration on
+   the SAME element, where !important legitimately outranks specificity
+   and source order. Confirmed via getComputedStyle on the actual <p>,
+   not just the <button>, which is what hid this the first time. */
+button[kind="primary"] * { color: inherit !important; }
 button[kind="primary"]:hover { opacity: 0.85; }
 
 /* ============ NEW SCREENING: an explicit stepped flow ================ */
@@ -782,21 +853,39 @@ button[kind="primary"]:hover { opacity: 0.85; }
   animation: bsx-rise var(--dur) var(--ease-out) 120ms backwards; }
 .bsx-hero-rule { height: 1px; background: var(--line); margin: 3rem 0 0 0; }
 
-/* the four tiers, stated as the architecture rather than a live result */
-.bsx-tier-grid { display:grid; grid-template-columns: repeat(auto-fit, minmax(230px, 1fr)); gap: 1px;
-  background: var(--line); border: 1px solid var(--line); border-radius: var(--radius-lg); overflow: hidden; }
-.bsx-tiercard { padding: 1.6rem 1.7rem 1.7rem 1.7rem; background: var(--surface-lowest); position: relative;
-  animation: bsx-rise var(--dur) var(--ease-out) backwards; }
-.bsx-tiercard:nth-child(1){animation-delay:0ms;} .bsx-tiercard:nth-child(2){animation-delay:40ms;}
-.bsx-tiercard:nth-child(3){animation-delay:80ms;} .bsx-tiercard:nth-child(4){animation-delay:120ms;}
-.bsx-tiercard::before { content:""; position:absolute; top:0; left:0; width:34px; height:3px; background: var(--tc, var(--outline)); }
-.bsx-tiercard .code { font-family: var(--font-mono); font-size: 0.82rem; letter-spacing: 0.16em;
-  color: var(--tc, var(--text-3)); }
-.bsx-tiercard .name { font-family: var(--font-head); font-weight: 700; font-size: 1.22rem;
-  letter-spacing: -0.02em; color: var(--text); margin-top: 0.7rem; line-height:1.2; }
-.bsx-tiercard .role { font-family: var(--font-mono); font-size: 0.76rem; letter-spacing: 0.1em;
-  text-transform: uppercase; color: var(--tc, var(--text-3)); margin-top: 0.55rem; }
-.bsx-tiercard .desc { font-size: 0.98rem; line-height: 1.6; color: var(--text-3); margin-top: 0.85rem; max-width: 34ch; }
+/* the four tiers, stated as the architecture rather than a live result --
+   a connected ladder diagram, not four interchangeable cards. A rail on
+   the left (node + spine) mirrors the audit-trail's hash-chain visual
+   language: this hierarchy IS a chain of authority, so it reads as one.
+   Built in CSS (row height derives from real, variable description text)
+   rather than raw SVG coordinates, which would need the two to agree on
+   pixel-exact row heights independently of content length. */
+.bsx-ladder { border: 1px solid var(--line); border-radius: var(--radius-lg); background: var(--surface-lowest);
+  padding: 0.4rem 1.8rem 0.4rem 1.6rem; }
+.bsx-ladder-row { display:grid; grid-template-columns: 54px 1fr; column-gap: 1.5rem; position: relative;
+  padding: 1.5rem 0; animation: bsx-rise var(--dur) var(--ease-out) backwards; }
+.bsx-ladder-row:not(:last-child) { border-bottom: 1px solid var(--line-soft); }
+.bsx-ladder-row:nth-child(1){animation-delay:0ms;} .bsx-ladder-row:nth-child(2){animation-delay:40ms;}
+.bsx-ladder-row:nth-child(3){animation-delay:80ms;} .bsx-ladder-row:nth-child(4){animation-delay:120ms;}
+/* the spine: one continuous line behind every node, drawn on the wrapper
+   so it never has to resync with each row's independently-variable height. */
+.bsx-ladder { position: relative; }
+/* centered through the node column: padding-left + half the 54px node
+   width - half the line's own width, so the line threads through every
+   node's true center regardless of root font-size. */
+.bsx-ladder::before { content:""; position:absolute; left: calc(1.6rem + 27px - 0.5px);
+  top: 1.9rem; bottom: 1.9rem; width: 1px; background: var(--line); z-index: 0; }
+.bsx-ladder-node { width: 54px; height: 54px; border-radius: 50%; border: 1.5px solid var(--tc, var(--outline));
+  background: var(--surface-lowest); display: flex; align-items: center; justify-content: center;
+  font-family: var(--font-mono); font-weight: 700; font-size: 0.86rem; color: var(--tc, var(--text-3));
+  position: relative; z-index: 1; align-self: start; }
+.bsx-ladder-body .name { font-family: var(--font-head); font-weight: 700; font-size: 1.24rem;
+  letter-spacing: -0.02em; color: var(--text); line-height: 1.2; }
+.bsx-ladder-body .role { display: inline-block; font-family: var(--font-mono); font-size: 0.74rem;
+  font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase; color: var(--tc, var(--text-3));
+  border: 1px solid var(--tc, var(--line)); border-radius: var(--radius-sm); padding: 0.18rem 0.5rem;
+  margin-top: 0.5rem; }
+.bsx-ladder-body .desc { font-size: 0.98rem; line-height: 1.6; color: var(--text-3); margin-top: 0.7rem; max-width: 62ch; }
 
 /* honest limitations, stated on the front page rather than discovered in Q&A */
 .bsx-honesty { display:grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 2rem 2.5rem; }
