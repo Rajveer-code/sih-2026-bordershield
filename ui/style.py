@@ -654,7 +654,15 @@ button[kind="primary"]:hover { opacity: 0.85; }
 .bsx-spine-name { font-family: var(--font-body); font-size: 1.05rem; font-weight: 500; color: var(--text); line-height:1.35; }
 .bsx-spine-row.na .bsx-spine-name { color: var(--text-3); font-weight: 400; }
 .bsx-spine-row.fail .bsx-spine-name { color: var(--red); font-weight: 600; }
-.bsx-spine-detail { font-size: 0.92rem; color: var(--text-3); margin-top: 0.2rem; line-height:1.45; max-width: 52ch; }
+/* "Checks:" -- the constant plain-English question this tier answers.
+   Set quieter and italic so it reads as a standing description, never as
+   a finding about the document on screen. The pair of lines (question,
+   then "This case:") is the whole fix for the case file being
+   unreadable -- see _TIER_QUESTION in ui/screens.py. */
+.bsx-spine-asks { font-size: 0.86rem; color: var(--text-3); font-style: italic; margin-top: 0.25rem;
+  line-height: 1.45; max-width: 54ch; }
+.bsx-spine-detail { font-size: 0.92rem; color: var(--text-2); margin-top: 0.35rem; line-height:1.45; max-width: 52ch; }
+.bsx-spine-detail b { color: var(--text); font-weight: 600; }
 .bsx-spine-status { font-family: var(--font-mono); font-size: 0.79rem; letter-spacing: 0.12em;
   color: var(--text-3); padding-top: 0.3rem; }
 .bsx-spine-row.fail .bsx-spine-status { color: var(--red); }
@@ -686,6 +694,29 @@ button[kind="primary"]:hover { opacity: 0.85; }
   font-weight: 700; letter-spacing: -0.01em; color: var(--red); }
 .bsx-finding-body { padding: 0 1rem 0.9rem 1rem; }
 .bsx-finding-body p { color: var(--text-2); font-size: 0.95rem; margin: 0 0 0.7rem 0; line-height:1.55; }
+/* Technical wording, kept but demoted. Native <details> so it needs no
+   JS and stays keyboard-operable; closed by default so the plain-English
+   answer is what an officer reads first. */
+.bsx-tech { margin-top: 0.2rem; border-top: 1px solid var(--line-soft); padding-top: 0.5rem; }
+.bsx-tech summary { font-family: var(--font-mono); font-size: 0.74rem; letter-spacing: 0.08em;
+  text-transform: uppercase; color: var(--text-3); cursor: pointer; list-style: none; }
+.bsx-tech summary::-webkit-details-marker { display: none; }
+.bsx-tech summary::before { content: "▸ "; color: var(--accent); }
+.bsx-tech[open] summary::before { content: "▾ "; }
+.bsx-tech summary:hover { color: var(--text-2); }
+.bsx-tech p { font-family: var(--font-mono); font-size: 0.8rem; color: var(--text-3) !important;
+  margin: 0.5rem 0 0 0 !important; line-height: 1.5; }
+
+/* "Not established by this check" -- the honest counterpart to a score.
+   Deliberately neutral, never a severity colour: an unassessed layer is
+   an absence of evidence, not evidence against the document. */
+.bsx-limits { border: 1px solid var(--line); border-left: 3px solid var(--outline);
+  border-radius: var(--radius-lg); background: var(--surface-low); padding: 1rem 1.2rem; margin-top: 1rem; }
+.bsx-limits .k { font-family: var(--font-mono); font-size: 0.74rem; letter-spacing: 0.1em;
+  text-transform: uppercase; color: var(--text-3); margin-bottom: 0.6rem; }
+.bsx-limits ul { margin: 0 0 0.7rem 0; padding-left: 1.1rem; }
+.bsx-limits li { font-size: 0.88rem; color: var(--text-2); line-height: 1.5; margin-bottom: 0.25rem; }
+.bsx-limits p { font-size: 0.88rem; color: var(--text-3); margin: 0; line-height: 1.55; }
 .bsx-finding.advisory { border-left-color: var(--amber); }
 .bsx-finding.advisory .bsx-finding-head { color: var(--amber); }
 .bsx-compare-grid { display:grid; grid-template-columns: 1fr 1fr; gap: 0.5rem;
