@@ -88,7 +88,13 @@ def overlay(image_path: str, verdict: Verdict) -> Image.Image:
     """
     img = Image.open(image_path).convert("RGB")
     draw = ImageDraw.Draw(img)
-    label_font = ImageFont.truetype(FONTS["sans_bold"], 12)
+    try:
+        label_font = ImageFont.truetype(FONTS["sans_bold"], 12)
+    except OSError:
+        # FONTS["sans_bold"] is a Windows path (config.py) -- doesn't exist
+        # on a Linux deploy container. PIL's bitmap default always exists,
+        # everywhere; the label text stays readable, just less polished.
+        label_font = ImageFont.load_default(size=12)
 
     whole_document_flagged = False
     groups: dict[tuple[int, int, int, int], list] = {}
