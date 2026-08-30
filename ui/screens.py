@@ -61,7 +61,7 @@ def topbar_html(title: str, subtitle: str = "", case_chip: str = "", chain_ok: b
     sub_html = f"<div class='sub'>{subtitle}</div>" if subtitle else ""
     eyebrow_html = f"<div class='eyebrow'>{eyebrow}</div>" if eyebrow else ""
     return (
-        "<div class='bsx-topbar'>"
+        "<div class='bsx-topbar bsx-ticks'>"
         f"<div>{eyebrow_html}<div class='title'>{title}</div>{sub_html}</div>"
         f"<div class='meta'>{chip_html}{chain_html}</div>"
         "</div>"
@@ -74,7 +74,7 @@ def hero_html() -> str:
     nothing is a marketing number, and no metric appears that isn't
     produced live elsewhere in the console."""
     return """
-    <div class="bsx-hero">
+    <div class="bsx-hero bsx-ticks">
       <div class="bsx-hero-eyebrow">PS 26188 &middot; Ministry of Home Affairs &middot; Sashastra Seema Bal</div>
       <h1 class="bsx-hero-title">BorderShield<span class="dim"> AI</span></h1>
       <p class="bsx-hero-thesis">Everyone else builds a classifier.<br>
@@ -88,9 +88,13 @@ def hero_html() -> str:
     """
 
 
-def tier_grid_html() -> str:
-    """The Trust Ladder stated as architecture. Same four tiers the case
-    file resolves live -- shown here as the design, there as the result."""
+def trust_ladder_html() -> str:
+    """The Trust Ladder stated as architecture, as one connected diagram --
+    same four tiers the case file resolves live -- shown here as the
+    design, there as the result. Was four identical bordered cards
+    (tier_grid_html); replaced for the premium-polish pass because a grid
+    of same-shape boxes doesn't read as a HIERARCHY the way a connected
+    rail of nodes does. Data unchanged from the prior version."""
     tiers = [
         ("T0", "Cryptographic proof", "Decisive both ways", "var(--green)",
          "A signed manifest over the document's fields, portrait and MRZ. Change one pixel of "
@@ -105,12 +109,13 @@ def tier_grid_html() -> str:
          "1:1 face comparison against the document portrait, behind a quality gate. A bad capture "
          "returns REVIEW with no similarity score at all."),
     ]
-    cards = "".join(
-        f"<div class='bsx-tiercard' style='--tc:{colour};'>"
-        f"<div class='code'>{code}</div><div class='name'>{name}</div>"
-        f"<div class='role'>{role}</div><div class='desc'>{desc}</div></div>"
+    rows = "".join(
+        f"<div class='bsx-ladder-row' style='--tc:{colour};'>"
+        f"<div class='bsx-ladder-node'>{code}</div>"
+        f"<div class='bsx-ladder-body'><div class='name'>{name}</div>"
+        f"<div class='role'>{role}</div><div class='desc'>{desc}</div></div></div>"
         for code, name, role, colour, desc in tiers)
-    return f"<div class='bsx-tier-grid'>{cards}</div>"
+    return f"<div class='bsx-ladder'>{rows}</div>"
 
 
 def honesty_html() -> str:
@@ -193,7 +198,7 @@ def status_card_html(label: str, value: str, pill: tuple[str, str] | None = None
 
 def status_grid_html(cards: list[str]) -> str:
     """Wraps pre-rendered status_card_html cells into the bordered grid."""
-    return f"<div class='bsx-status-grid'>{''.join(cards)}</div>"
+    return f"<div class='bsx-status-grid bsx-ticks'>{''.join(cards)}</div>"
 
 
 def scenario_card_head_html(scenario_id: str, layer: str, title: str, description: str) -> str:

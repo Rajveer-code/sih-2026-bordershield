@@ -49,7 +49,7 @@ def render_landing() -> None:
         st.caption("Four tiers, evaluated in this order. A tier's authority is fixed by the "
                     "architecture, not by how confident a model happens to be.")
         st.write("")
-        st.markdown(screens.tier_grid_html(), unsafe_allow_html=True)
+        st.markdown(screens.trust_ladder_html(), unsafe_allow_html=True)
 
     st.write("")
     with st.container():
