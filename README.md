@@ -3,7 +3,7 @@
 **AI-Based Fake Identity & Document Screening System**
 Ministry of Home Affairs · Sashastra Seema Bal (SSB) · Category: Software · Theme: Blockchain & Cybersecurity
 
-**Status: working prototype.** All 5 console screens run end-to-end against real generated attacks; 81/81 tests passing. Read this file top to bottom before touching code — it's the fastest path to a running app.
+**Status: working prototype.** All 6 console screens run end-to-end against real generated attacks; 108/108 tests passing. Read this file top to bottom before touching code — it's the fastest path to a running app.
 
 ## The one-line thesis
 
@@ -40,7 +40,27 @@ Invoke-WebRequest -Uri "https://media.githubusercontent.com/media/opencv/opencv_
 .\venv\Scripts\python.exe -m streamlit run app.py
 ```
 
-Open `http://localhost:8501`. Dashboard → **Controlled Attack Simulation** → click any of the 6 buttons. Each one runs a real generated document through the full pipeline and logs a real, hash-chained case — nothing on screen is staged.
+Open `http://localhost:8501`. Command Center → **Attack Wall** → click any of the 6 scenario cards. Each one runs a real generated document through the full pipeline and logs a real, hash-chained case — nothing on screen is staged.
+
+## Deploying
+
+**Streamlit Community Cloud** (free, built for this exact stack) — not Vercel: Streamlit needs a
+persistent WebSocket-backed process, which serverless/edge platforms structurally can't run.
+
+1. Push this repo to GitHub (already done if you're reading this from there).
+2. [share.streamlit.io](https://share.streamlit.io) → **New app** → pick this repo/branch, main
+   file path `app.py`.
+3. Nothing else to configure: `requirements.txt` and `packages.txt` (system libs — `libgl1` /
+   `libglib2.0-0`, needed for `opencv-contrib-python` on the Linux container) are both already
+   in the repo root and picked up automatically. `.streamlit/config.toml` sets the theme + headless
+   mode, also automatic.
+4. The demo corpus (`data/documents/`, `data/forged/`) and models (`models/*.onnx`, `models/*.npz`)
+   are committed (see the folder map below for why) — the app works on a fresh clone with zero
+   local generation step. `data/pki/` (signing keys) stays gitignored and lazy-initializes on the
+   deployed instance's first screening — that's by design, not a missing step.
+5. First boot installs `opencv-contrib-python`/`onnxruntime`/`rapidocr-onnxruntime` from
+   `requirements.txt`, which takes a few minutes the first time. Subsequent restarts are fast
+   (cached).
 
 ## What this is NOT
 
@@ -69,22 +89,24 @@ Full rationale for the fusion rule (and the two real bugs it took to get right) 
 | `core/realdoc/` | Mode B's separate pipeline (arbitrary real documents): OCR, classification, portrait discovery, best-effort MRZ, field extraction/validation, its own capped risk fusion. See "Real Document Screening" below. Imports from `core/` (reuses forensics + face verification unchanged); nothing in `core/` imports back. |
 | `synth/` | Generates the synthetic UTO demo document, the 3 forged attacks (DOB edit, portrait swap, screen recapture), and signs everything. |
 | `ui/` | Streamlit console. `style.py` = CSS/design tokens, `screens.py` = pure render functions (data in, markup out, never touches session state), `actions.py` = session-state/ledger logic, `pages.py` = per-screen orchestration wiring the two together. |
-| `tests/` | 97 tests, run before every commit. |
+| `tests/` | 108 tests, run before every commit. |
 | `docs/` | Phase-0 research, strategy, architecture, feature backlog, execution plan. Background/rationale, not setup instructions — this README is the setup doc. |
 | `reference/` | The Stitch-generated UI reference design the console's visuals are matched to. |
-| `data/`, `models/`, `results/` | Gitignored. Generated/downloaded, never committed — `data/pki/` specifically holds real (if demo-only) private keys. |
+| `data/documents/`, `data/forged/`, `models/*.onnx`, `models/*.npz` | Committed — deploy needs them present with no local generation step, and `synth/*.py`'s text rendering hardcodes Windows font paths, unusable on a Linux deploy container. |
+| `data/pki/`, `data/portraits/`, `results/` | Gitignored. `data/pki/` holds real (if demo-only) private keys; `data/portraits/` holds real consenting-person photos; `results/` is session-local ledger output. |
 
 ## The console
 
-5 screens, fixed sidebar nav:
+6 screens, fixed sidebar nav (visuals: the Sovereign light design system — see `PLAN_redesign.md`/`PLAN_polish.md` for the full rationale):
 
 | Screen | Shows |
 |---|---|
-| **Command Dashboard** | Live stats from the real ledger, the 6-button Attack Wall, recent cases table. |
+| **Overview** | The thesis, the Trust Ladder drawn as a connected diagram, and the honest "what this is not" limits — read once, before operating the console. |
+| **Command Center** | 4 real status cards (models/PKI/ledger/cases), the 6-button Attack Wall as scenario cards, recent-cases table. |
 | **New Screening** | Mode toggle: **Demo Document** (the UTO template + Attack Wall) or **Real Document** (any arbitrary upload, see below). |
-| **Evidence Analysis** | The document (heatmap-boxed if anything failed), a 4-tier verification sequence, one detail card per failed signal with the actual compared values. |
-| **Risk Decision** | Score ring, the real policy.yaml band cutoffs, per-signal weight breakdown. |
-| **Investigation** | Case summary, decoded MRZ with real per-field checksum status, hash-chained audit trail, chain-integrity verify + tamper-demo utilities. |
+| **Case File** | One case, one page: verdict, the ladder that produced it, evidence/findings, score contributions, the pipeline log, MRZ, extracted identity. |
+| **Audit Trail** | Hash-chained ledger records across all cases, chain-integrity verify + tamper-demo utilities. |
+| **System Status** | Models, demo signing PKI, `policy.yaml` weights/bands/overrides, ledger state, live test count — read directly off this machine. |
 
 ### Attack Wall — what each button actually does
 
@@ -111,7 +133,7 @@ The Attack Wall's **FACE MISMATCH** button stays disabled — it needs a *second
 
 ## Real Document Screening (Mode B)
 
-A second, separate pipeline (`core/realdoc/`) alongside Mode A's fixed-template one. Upload *any* document — passport, college ID, marksheet, driving licence, whatever — at its own native resolution, no 1000×700 requirement, nothing resized destructively. Switch to it via **Command Dashboard → Real Document**, or the mode toggle at the top of **New Screening**.
+A second, separate pipeline (`core/realdoc/`) alongside Mode A's fixed-template one. Upload *any* document — passport, college ID, marksheet, driving licence, whatever — at its own native resolution, no 1000×700 requirement, nothing resized destructively. Switch to it via the mode toggle at the top of **New Screening**.
 
 It is **capability-aware**: every check only runs when the document actually supports it, and says so explicitly rather than guessing.
 
@@ -144,7 +166,7 @@ It is **capability-aware**: every check only runs when the document actually sup
 .\venv\Scripts\python.exe -m pytest tests/ -q
 ```
 
-102 tests: 82 covering Mode A (MRZ checksums, crosszone, rules, risk fusion, all 4 forensic detectors, crypto, ledger tamper-detection, the evidence heatmap) + 20 covering Mode B (`tests/test_realdoc.py` — arbitrary dimensions, portrait discovery, real face MATCH across 4 photos, a **genuine** real-second-identity MISMATCH end-to-end plus a forced-threshold logic test kept alongside it, quality-gate REVIEW, the 4-way MRZ status model, MRZ/crypto correctly N/A, field-extraction hallucination guards, page-boundary cropping, band-capping). Run this before every commit — CI-equivalent until an actual CI is set up.
+108 tests: 82 covering Mode A (MRZ checksums, crosszone, rules, risk fusion, all 4 forensic detectors, crypto, ledger tamper-detection, the evidence heatmap) + 26 covering Mode B (`tests/test_realdoc.py` — arbitrary dimensions, portrait discovery, real face MATCH across 4 photos, a **genuine** real-second-identity MISMATCH end-to-end plus a forced-threshold logic test kept alongside it, quality-gate REVIEW, the 4-way MRZ status model, MRZ/crypto correctly N/A, field-extraction hallucination guards, page-boundary cropping, band-capping). Run this before every commit — CI-equivalent until an actual CI is set up.
 
 ## Hard rules for this repo
 
