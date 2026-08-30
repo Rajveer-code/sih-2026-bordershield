@@ -14,9 +14,9 @@ _TIER_ORDER = [Tier.CRYPTO, Tier.RULES, Tier.FORENSICS, Tier.BIOMETRIC]
 def crypto_note(verdict: Verdict) -> str | None:
     if not verdict.crypto_override:
         return None
-    return ("<div class='bsx-crypto-note'><b>Decided by cryptography, not a model.</b> "
-            "This verdict was forced by a signature/manifest failure in the T0 tier. "
-            "No forensic or biometric score was consulted for this decision.</div>")
+    return ("<div class='bsx-crypto-note'><b>Decided by mathematics, not by AI.</b> "
+            "The document's digital signature did not check out, so the verdict was settled at the "
+            "cryptographic layer. No AI model's opinion was used, or needed, to reach it.</div>")
 
 
 # ============================================================ new screens ===
@@ -79,10 +79,13 @@ def hero_html() -> str:
       <h1 class="bsx-hero-title">BorderShield<span class="dim"> AI</span></h1>
       <p class="bsx-hero-thesis">Everyone else builds a classifier.<br>
         We build a <em>trust hierarchy</em>.</p>
-      <p class="bsx-hero-lede">An identity and document screening console for border control.
-        Cryptography decides first. Deterministic rules decide second. Machine learning only
-        ever advises &mdash; and is structurally incapable of condemning a document on its own.
-        That rule is enforced in <code>core/risk.py</code>, not just asserted in a pitch.</p>
+      <p class="bsx-hero-lede">A screening console for border checkpoints. It reads an identity
+        document, checks whether the document&rsquo;s own details agree with each other, looks for
+        signs the image has been edited, and compares the photo against the person presenting it.
+        <br><br>Checks run in a fixed order of authority: mathematical proof first, hard rules
+        second, AI last. <em>AI can raise a hand and ask an officer to look closer &mdash; it can
+        never, on its own, get a document rejected.</em> That limit is written into the code, not
+        promised in a slide.</p>
       <div class="bsx-hero-rule"></div>
     </div>
     """
@@ -354,6 +357,38 @@ _TIER_ROLE = {
     Tier.BIOMETRIC: "Advisory — capped at HIGH",
 }
 
+# The plain-English question each tier answers. CONSTANT per tier -- this
+# describes the check's job and never changes with the result. It is
+# rendered separately from the per-case outcome because conflating the two
+# is what made the case file unreadable: an officer could not tell whether
+# "capture shows moire/blockiness consistent with a screen recapture" was
+# a description of what forensics looks for, or a finding about the
+# document actually in front of them. It was the former; it read as the
+# latter.
+_TIER_QUESTION = {
+    Tier.CRYPTO: "Was the signed document data changed after it was signed?",
+    Tier.RULES: "Do the document's own values agree with each other?",
+    Tier.FORENSICS: "Does the image show signs of editing, printing or screen recapture?",
+    Tier.BIOMETRIC: "Does the presented person match the portrait on the document?",
+}
+
+# Technical wording that is correct but unreadable at an inspection desk,
+# mapped to what it actually means. The ORIGINAL string is never
+# discarded -- callers render it under a "technical details" disclosure --
+# so nothing is dumbed down away, only demoted below the plain answer.
+_PLAIN_MESSAGE = {
+    "Document Signer certificate was not issued by the trusted signing authority":
+        "The signature on this document does not trace back to the authority that should have issued it.",
+    "Signature does not match the signed manifest -- the record itself is invalid":
+        "The document's contents no longer match what was signed. Something changed after signing.",
+}
+
+
+def plain_message(message: str) -> tuple[str, str | None]:
+    """(plain English, original technical wording or None if unchanged)."""
+    plain = _PLAIN_MESSAGE.get(message)
+    return (plain, message) if plain else (message, None)
+
 
 def verification_sequence_html(verdict: Verdict) -> str:
     """The Trust Ladder drawn as a vertical spine, with the tier that
@@ -388,12 +423,14 @@ def verification_sequence_html(verdict: Verdict) -> str:
         else:
             status, cls, icon = "N/A", "na", "–"
 
+        # THIS CASE -- the outcome for the document actually in front of
+        # the officer. Kept strictly separate from the question above it.
         if fails:
-            detail = fails[0].message
+            outcome, _technical = plain_message(fails[0].message)
         elif passes:
-            detail = _TIER_ROLE[tier]
+            outcome = "No problem found."
         else:
-            detail = "Not applicable to this document"
+            outcome = "Not applicable to this document."
 
         marker = "<span class='bsx-decided'>Decided here</span>" if tier == deciding else ""
         rows.append(
@@ -401,7 +438,8 @@ def verification_sequence_html(verdict: Verdict) -> str:
             f"<div class='bsx-spine-tier'>{_TIER_CODE[tier]}</div>"
             f"<div class='bsx-spine-dot {cls}'>{icon}</div>"
             f"<div><div class='bsx-spine-name'>{_TIER_SEQ_LABEL[tier]}{marker}</div>"
-            f"<div class='bsx-spine-detail'>{detail}</div></div>"
+            f"<div class='bsx-spine-asks'>Checks: {_TIER_QUESTION[tier]}</div>"
+            f"<div class='bsx-spine-detail'><b>This case:</b> {outcome}</div></div>"
             f"<div class='bsx-spine-status'>{status}</div>"
             f"</div>"
         )
@@ -414,17 +452,17 @@ def finding_heading(check: str) -> str:
     if check.startswith("mrz_checksum_"):
         return "MRZ checksum failure"
     if check == "manifest_match":
-        return "Signed record modified since intake"
+        return "Document changed after it was signed"
     if check in ("signature_valid", "signature_chain"):
-        return "Cryptographic signature invalid"
+        return "Digital signature does not check out"
     if check == "photo_region_anomaly":
-        return "Portrait region anomaly"
+        return "Portrait looks edited or pasted in"
     if check == "noise_residual_anomaly":
-        return "Retouching artifact detected"
+        return "Signs of retouching in the image"
     if check == "recapture_anomaly":
-        return "Screen / print recapture signature"
+        return "Looks like a photo of a screen or printout"
     if check == "face_verification":
-        return "Biometric mismatch"
+        return "Face does not match the document portrait"
     return check.replace("_", " ").title()
 
 
@@ -441,7 +479,14 @@ def finding_cards_html(verdict: Verdict) -> str:
         if s.severity != Severity.FAIL:
             continue
         heading = finding_heading(s.check)
-        body = f"<p>{s.message}</p>"
+        # Plain answer first; the exact technical wording is kept, but
+        # demoted to a <details> disclosure so it stops competing with the
+        # thing an officer needs to read in two seconds.
+        plain, technical = plain_message(s.message)
+        body = f"<p>{plain}</p>"
+        if technical:
+            body += (f"<details class='bsx-tech'><summary>Technical detail</summary>"
+                      f"<p>{technical}</p></details>")
         if s.check.startswith("crosszone_") and "viz" in s.detail and "mrz" in s.detail:
             body += (
                 "<div class='bsx-compare-grid'>"
@@ -539,11 +584,16 @@ def verdict_hero_html(verdict: Verdict, risk_bands: list | None = None) -> str:
     cls = _LIGHT_CLASS[light]
     fails = [s for s in verdict.signals if s.severity == Severity.FAIL]
 
+    # The crypto_override case deliberately says LESS here than it used to:
+    # crypto_note() renders the full plain-English explanation directly
+    # below this block, and having both say it -- one in tier jargon, one
+    # in plain English -- was redundant and made the jargon version look
+    # like a separate, additional finding.
     if verdict.crypto_override:
-        why = ("<b>Decided by cryptography, not by a model.</b> A signature or manifest check failed at "
-                "tier T0. No forensic or biometric score contributed to this verdict.")
+        why = "The document's digital signature did not check out. See the note below."
     elif fails:
-        why = f"<b>{len(fails)} finding{'s' if len(fails) != 1 else ''}</b> across the Trust Ladder. {fails[0].message}"
+        plain, _technical = plain_message(fails[0].message)
+        why = f"<b>{len(fails)} finding{'s' if len(fails) != 1 else ''}</b> across the Trust Ladder. {plain}"
     else:
         why = "Every applicable check passed. No findings across any tier of the Trust Ladder."
 
@@ -610,19 +660,46 @@ _LADDER_DOT = {"VERIFIED": ("pass", "✓", "VERIFIED"), "FAILED": ("fail", "✕"
                "REVIEW": ("review", "!", "REVIEW"), "NOT_APPLICABLE": ("na", "–", "N/A")}
 
 
+# Same "what does this check ask" treatment as the Mode A ladder
+# (_TIER_QUESTION), keyed by the step names core/realdoc/pipeline.py
+# actually builds. Keyed defensively: an unmapped step just renders
+# without a question rather than raising.
+_REALDOC_QUESTION = {
+    "Document Detection": "Is there readable text on this image at all?",
+    "OCR / Field Extraction": "Which named fields could actually be read?",
+    "MRZ Detection": "Does this document carry a machine-readable strip, and does it check out?",
+    "Rule Validation": "Do the document's values satisfy the format and date rules?",
+    "Cross-Field Consistency": "Do fields that should agree with each other actually agree?",
+    "Forensic Analysis": "Does the image show signs of editing, printing or screen recapture?",
+    "Biometric Verification": "Does the presented person match the portrait on the document?",
+    "Cryptographic Integrity": "Was the signed document data changed after it was signed?",
+}
+
+# Why a REVIEW is a REVIEW. Without this the officer sees a bare "REVIEW"
+# and reasonably reads it as "something is wrong" -- when it means the
+# opposite: we decline to grade a layer we cannot grade honestly.
+_REALDOC_REVIEW_REASON = {
+    "Forensic Analysis": "Thresholds are calibrated on our synthetic template, so no confident "
+                          "forensic conclusion is drawn on an arbitrary real document. This costs no risk points.",
+}
+
+
 def realdoc_ladder_html(steps: list) -> str:
     rows = []
     for i, step in enumerate(steps, 1):
         dot_cls, icon, status_txt = _LADDER_DOT.get(step.status, ("na", "–", "N/A"))
         row_cls = {"pass": "", "fail": "fail", "review": "review", "na": "na"}[dot_cls]
-        detail = f"<div style='font-size:0.72rem;color:var(--text-3);'>{step.detail}</div>" if step.detail else ""
+        question = _REALDOC_QUESTION.get(step.name)
+        asks = f"<div class='bsx-spine-asks'>Checks: {question}</div>" if question else ""
+        reason = step.detail or (_REALDOC_REVIEW_REASON.get(step.name, "") if step.status == "REVIEW" else "")
+        detail = f"<div class='bsx-spine-detail'><b>This case:</b> {reason}</div>" if reason else ""
         rows.append(
             f"<div class='bsx-vseq-row {row_cls}'>"
             f"<div class='bsx-vseq-dot {dot_cls}'>{icon}</div>"
             f"<div class='bsx-vseq-label' style='flex-direction:column;align-items:flex-start;gap:0.1rem;'>"
             f"<div style='display:flex;justify-content:space-between;width:100%;'>"
             f"<span>{i:02d} {step.name}</span><span class='status'>{status_txt}</span></div>"
-            f"{detail}</div></div>"
+            f"{asks}{detail}</div></div>"
         )
     return f"<div class='bsx-vseq'>{''.join(rows)}</div>"
 
@@ -704,7 +781,31 @@ def realdoc_verdict_card_html(verdict) -> str:
     neutral grey rather than a severity colour: "not enough was
     determinable" is not a finding against the document."""
     hex_color = _REALDOC_BAND_HEX.get(verdict.band, "#6b7683")
-    label = f"{verdict.band} risk" if verdict.band != "REVIEW" else "Insufficient evidence"
+    # A score of 0 on an arbitrary real document means "nothing we weighed
+    # counted against it" -- NOT "this document is genuine". Those are
+    # different claims and only the first one is supported: this mode has
+    # no issuer registry to check a document against, and its forensic
+    # thresholds are calibrated on the synthetic template, so several
+    # layers legitimately return REVIEW / NOT APPLICABLE rather than a
+    # pass. Labelling that "LOW risk" invited exactly the wrong reading.
+    if verdict.band == "REVIEW":
+        label = "Insufficient evidence"
+    elif verdict.score == 0:
+        label = "No adverse signals"
+    else:
+        label = f"{verdict.band} risk"
+
+    # "What was NOT assessed" -- read off the REAL ladder, never a fixed
+    # list, so it can't drift out of step with what actually ran.
+    unassessed = [s.name for s in getattr(verdict, "steps", []) if s.status in ("REVIEW", "NOT_APPLICABLE")]
+    limits = "".join(f"<li>{name}</li>" for name in unassessed)
+    limits_block = (
+        f"<div class='bsx-limits'><div class='k'>Not established by this check</div>"
+        f"<ul>{limits}<li>Issuer authenticity &mdash; no registry lookup exists for uploaded documents</li></ul>"
+        f"<p>A score of {verdict.score} means no weighted signal counted against this document. "
+        f"It is not a confirmation that the document was genuinely issued.</p></div>"
+    )
+
     return f"""
     <div class="bsx-verdict" style="--vc:{hex_color};">
       <div class="bsx-verdict-grid">
@@ -721,4 +822,5 @@ def realdoc_verdict_card_html(verdict) -> str:
         </div>
       </div>
     </div>
+    {limits_block}
     """
