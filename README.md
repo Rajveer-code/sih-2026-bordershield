@@ -193,6 +193,7 @@ It is **capability-aware**: every check only runs when the document actually sup
 |---|---|
 | [`docs/team/dossier.html`](docs/team/dossier.html) | **Everyone.** Answers any question a judge can ask, in plain English — what the project is, the three questions people mix up, what each screen shows, easy and hard question banks, glossary. Read once before Round 2. |
 | [`docs/team/run-of-show.html`](docs/team/run-of-show.html) | **Whoever presents.** What each screen is, then the click-by-click demo script: what to click, what to say, how long, and what to do if something breaks live. |
+| [`docs/team/current-state.md`](docs/team/current-state.md) | **Whoever's planning the final build.** Every screen and button, what's real vs. disabled vs. not built, and why — the baseline before adding anything new. |
 
 Both are self-contained HTML — open them in any browser, no server needed.
 
