@@ -3,7 +3,7 @@
 **AI-Based Fake Identity & Document Screening System**
 Ministry of Home Affairs · Sashastra Seema Bal (SSB) · Category: Software · Theme: Blockchain & Cybersecurity
 
-**Status: working prototype.** All 6 console screens run end-to-end against real generated attacks; 108/108 tests passing. Read this file top to bottom before touching code — it's the fastest path to a running app.
+**Status: working prototype.** All 6 console screens run end-to-end against real generated attacks; 134/134 tests passing. Read this file top to bottom before touching code — it's the fastest path to a running app.
 
 ## The one-line thesis
 
@@ -27,7 +27,7 @@ python -m venv venv
 .\venv\Scripts\pip install -r requirements.txt
 
 # 3. Verify the build
-.\venv\Scripts\python.exe -m pytest tests/ -q      # expect 108 passed
+.\venv\Scripts\python.exe -m pytest tests/ -q      # expect 134 passed
 
 # 4. Run the console
 .\venv\Scripts\python.exe -m streamlit run app.py
@@ -61,13 +61,14 @@ persistent WebSocket-backed process, which serverless/edge platforms structurall
 
 - **Not a general document scanner.** The pipeline reads one fixed 1000×700 layout (the UTO demo passport template it generates itself) at fixed pixel coordinates. It will not parse a real passport, Aadhaar, PAN, or DL photo — that's explicitly out of scope for this build (see `docs/06-VERIFY-QUEUE.md`). Don't feed it real ID scans expecting a result; it'll just misread the MRZ.
 - **Not using real ICAO Passive Authentication or the PKD.** Crypto integrity is a real X.509 chain + real ECDSA signatures, but the trust anchor is our own demo signing authority, not a government's. Labelled everywhere it surfaces in the UI.
-- **Not a blockchain.** The audit trail is a hash-chained JSONL file. Real tamper-evidence for in-place edits, honestly documented limitation against tail-truncation (`core/crypto/ledger.py` docstring).
+- **Not a blockchain.** The audit trail is a hash-chained JSONL file. Real tamper-evidence for in-place edits, plus a signed checkpoint that separately catches deletion of the newest record(s) (`core/crypto/ledger.py` docstring).
 
 ## Architecture — the Trust Ladder
 
 ```
 T0  Cryptographic signature   decisive BOTH ways   core/crypto/
 T1  MRZ + rules + crosszone   decisive AGAINST only core/mrz.py, core/rules/, core/crosszone.py
+T1  Issuer registry (synthetic/demo)  decisive AGAINST only  core/issuer/
 T2  Forensics (advisory)      caps at HIGH, never CRITICAL alone   core/forensics/
 T2  Biometric face match      caps at HIGH, never CRITICAL alone   core/face/
                      ↓
@@ -98,7 +99,7 @@ The console had a real readability failure: it printed a tier's *standing descri
 | `core/realdoc/` | Mode B's separate pipeline (arbitrary real documents): OCR, classification, portrait discovery, best-effort MRZ, field extraction/validation, its own capped risk fusion. See "Real Document Screening" below. Imports from `core/` (reuses forensics + face verification unchanged); nothing in `core/` imports back. |
 | `synth/` | Generates the synthetic UTO demo document, the 3 forged attacks (DOB edit, portrait swap, screen recapture), and signs everything. |
 | `ui/` | Streamlit console. `style.py` = CSS/design tokens, `screens.py` = pure render functions (data in, markup out, never touches session state), `actions.py` = session-state/ledger logic, `pages.py` = per-screen orchestration wiring the two together. |
-| `tests/` | 108 tests, run before every commit. |
+| `tests/` | 134 tests, run before every commit. |
 | `docs/` | Phase-0 research, strategy, architecture, feature backlog, execution plan. Background/rationale, not setup instructions — this README is the setup doc. |
 | `reference/` | The Stitch-generated UI reference design the console's visuals are matched to. |
 | `data/documents/`, `data/forged/`, `models/*.onnx`, `models/*.npz` | Committed — deploy needs them present with no local generation step, and `synth/*.py`'s text rendering hardcodes Windows font paths, unusable on a Linux deploy container. |
@@ -111,7 +112,7 @@ The console had a real readability failure: it printed a tier's *standing descri
 | Screen | Shows |
 |---|---|
 | **Overview** | The thesis, the Trust Ladder drawn as a connected diagram, and the honest "what this is not" limits — read once, before operating the console. |
-| **Command Center** | 4 real status cards (models/PKI/ledger/cases), the 6-button Attack Wall as scenario cards, recent-cases table. |
+| **Command Center** | 5 real status cards (models/PKI/issuer registry/ledger/cases), the 8-scenario Attack Wall as scenario cards, recent-cases table. |
 | **New Screening** | Mode toggle: **Demo Document** (the UTO template + Attack Wall) or **Real Document** (any arbitrary upload, see below). |
 | **Case File** | One case, one page: verdict, the ladder that produced it, evidence/findings, score contributions, the pipeline log, MRZ, extracted identity. |
 | **Audit Trail** | Hash-chained ledger records across all cases, chain-integrity verify + tamper-demo utilities. |
@@ -127,6 +128,8 @@ The console had a real readability failure: it printed a tier's *standing descri
 | SCREEN RECAPTURE | Real re-encode + moiré/glare simulation | T2 forensics only — routes to review, never CRITICAL |
 | FACE MISMATCH | *(disabled — see below)* | T2 biometric |
 | BREAK SIGNATURE | Hand-tampers an already-signed manifest | T0 crypto — CRITICAL, zero forensic/biometric input consulted |
+| PERFECT DOCUMENT, REVOKED | Self-consistent, cleanly-signed document; the issuer registry marks it REVOKED | T1 issuer registry — no pixel is forged, nothing else fires |
+| VALID NUMBER, WRONG IDENTITY | A real ACTIVE document number, presented under a name/DOB the registry disagrees with | T1 issuer registry — field mismatch |
 
 ### Face verification — status
 
@@ -175,7 +178,7 @@ It is **capability-aware**: every check only runs when the document actually sup
 .\venv\Scripts\python.exe -m pytest tests/ -q
 ```
 
-108 tests: 82 covering Mode A (MRZ checksums, crosszone, rules, risk fusion, all 4 forensic detectors, crypto, ledger tamper-detection, the evidence heatmap) + 26 covering Mode B (`tests/test_realdoc.py` — arbitrary dimensions, portrait discovery, real face MATCH across 4 photos, a **genuine** real-second-identity MISMATCH end-to-end plus a forced-threshold logic test kept alongside it, quality-gate REVIEW, the 4-way MRZ status model, MRZ/crypto correctly N/A, field-extraction hallucination guards, page-boundary cropping, band-capping). Run this before every commit — CI-equivalent until an actual CI is set up.
+134 tests: 108 covering Mode A (MRZ checksums, crosszone, rules, risk fusion, all 4 forensic detectors, crypto, ledger tamper- and truncation-detection, the evidence heatmap, the issuer registry — lookup/status handling/field comparison/integrity/tamper detection, and the two registry-only Attack Wall scenarios) + 26 covering Mode B (`tests/test_realdoc.py` — arbitrary dimensions, portrait discovery, real face MATCH across 4 photos, a **genuine** real-second-identity MISMATCH end-to-end plus a forced-threshold logic test kept alongside it, quality-gate REVIEW, the 4-way MRZ status model, MRZ/crypto correctly N/A, field-extraction hallucination guards, page-boundary cropping, band-capping). Run this before every commit — CI-equivalent until an actual CI is set up.
 
 ## Hard rules for this repo
 
