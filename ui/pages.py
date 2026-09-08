@@ -25,6 +25,7 @@ from core.face.pipeline import verify as face_verify
 from core.fields import PORTRAIT_BBOX
 from core.forensics.heatmap import overlay
 from core.realdoc import loader
+from core.realdoc.crossdoc import add_crossdoc_evidence, compare_documents
 from core.realdoc.pipeline import screen_real_document
 from core.risk import traffic_light
 from core.rules.engine import load_policy
@@ -357,6 +358,14 @@ def _render_real_document_capture() -> None:
                                        caption="Preview of the manually selected region", width=200)
                         else:
                             st.warning("x1/y1 must be greater than x0/y0.")
+                with st.expander("Optional: cross-check date of birth against a second document"):
+                    st.caption("A marksheet, a different ID, anything that might independently carry a date "
+                                "of birth. Screened separately, then compared -- if both agree, that's real "
+                                "corroborating evidence with no registry involved; if they conflict, that's "
+                                "reported plainly. Only date of birth is compared: free-text fields like name "
+                                "vary too much in OCR noise to compare reliably.")
+                    doc_file_2 = st.file_uploader("Upload a second document (PNG, JPG, JPEG, PDF)",
+                                                    type=["png", "jpg", "jpeg", "pdf"], key="realdoc_upload_2")
     with col_face:
         with st.container():
             st.markdown(screens.step_head_html(
@@ -375,8 +384,16 @@ def _render_real_document_capture() -> None:
     if st.button("Screen this document", type="primary", icon=":material/play_arrow:", key="realdoc_screen_btn"):
         with st.spinner("Running OCR, classification, forensics and biometric comparison..."):
             verdict, ctx = screen_real_document(doc_bgr, person_bgr=person_bgr, manual_portrait_bbox=manual_bbox)
+            crossdoc_ctx = None
+            if doc_file_2 is not None:
+                doc2_bgr = loader.load_bgr(doc_file_2.getvalue(), filename_hint=doc_file_2.name)
+                verdict2, ctx2 = screen_real_document(doc2_bgr)
+                cross_signals = compare_documents(ctx["fields"], ctx2["fields"])
+                verdict = add_crossdoc_evidence(verdict, cross_signals)
+                crossdoc_ctx = {"doc2_type": ctx2["doc_type"], "fields": cross_signals}
         st.session_state.realdoc_verdict = verdict
         st.session_state.realdoc_ctx = ctx
+        st.session_state.realdoc_crossdoc = crossdoc_ctx
         st.session_state.realdoc_doc_bgr = doc_bgr
         st.session_state.realdoc_person_bgr = person_bgr
         st.rerun()

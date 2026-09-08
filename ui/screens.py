@@ -852,6 +852,8 @@ _REALDOC_QUESTION = {
     "Forensic Analysis": "Does the image show signs of editing, printing or screen recapture?",
     "Biometric Verification": "Does the presented person match the portrait on the document?",
     "Cryptographic Integrity": "Was the signed document data changed after it was signed?",
+    "Cross-Document Consistency": "Does a field this document carries agree with the same field on a "
+                                    "second, independently uploaded document?",
 }
 
 # Why a REVIEW is a REVIEW. Without this the officer sees a bare "REVIEW"
