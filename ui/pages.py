@@ -610,6 +610,13 @@ def render_case() -> None:
                         "one's biometric reference — a registry lookup, not a face-similarity score.")
             st.markdown(screens.identity_continuity_html(verdict), unsafe_allow_html=True)
 
+        with st.container():
+            st.markdown("<div class='bsx-tier-head'>Export</div>", unsafe_allow_html=True)
+            st.download_button(
+                "Export case report (JSON)", data=actions.case_report_json(case_id, path, verdict, fields),
+                file_name=f"case_{case_id}.json", mime="application/json", use_container_width=True,
+                icon=":material/download:", key="export_case_btn")
+
 
 def render_audit() -> None:
     """The ledger across ALL cases -- deliberately a separate destination
@@ -693,6 +700,14 @@ def render_audit() -> None:
             if st.button("Reset ledger", use_container_width=True, key="reset_ledger_btn"):
                 actions.reset_ledger()
                 st.rerun()
+
+        with st.container():
+            st.markdown("<div class='bsx-tier-head'>Export</div>", unsafe_allow_html=True)
+            st.caption("Every record, exactly as stored -- for independent verification outside this app.")
+            st.download_button(
+                "Export ledger (JSON)", data=actions.ledger_export_json(records),
+                file_name="bordershield_ledger.json", mime="application/json", use_container_width=True,
+                icon=":material/download:", key="export_ledger_btn", disabled=not records)
 
 
 def render_status() -> None:
@@ -820,6 +835,12 @@ def render_status() -> None:
                     "in this console is checked against.")
         from core.issuer.registry import get_default_registry
         registry_records = get_default_registry().all_records()
+        query = st.text_input("Search by name, document number, or person ID", key="registry_search",
+                                placeholder="e.g. SHARMA, 900000006, P006 ...", label_visibility="collapsed")
+        if query.strip():
+            q = query.strip().upper()
+            registry_records = [r for r in registry_records if q in r.name.upper()
+                                  or q in r.document_number or q in r.person_id.upper()]
         st.markdown("<div class='bsx-scroll-x'>" + screens.registry_records_table_html(registry_records)
                      + "</div>", unsafe_allow_html=True)
 

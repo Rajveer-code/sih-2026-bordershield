@@ -282,6 +282,41 @@ def simulate_registry_tampering() -> dict:
     }
 
 
+def case_report_json(case_id: str, path, verdict, fields) -> str:
+    """Serializes one case's full evidence trail to indented JSON for
+    download -- every Signal (tier/check/severity/weight/message/detail),
+    not a summary, so the exported file carries the same evidence the
+    screen does. Read-only: never writes to disk itself, Streamlit's
+    download_button hands the bytes straight to the browser."""
+    report = {
+        "case_id": case_id,
+        "document": Path(path).name,
+        "generated_at": datetime.now(timezone.utc).isoformat(timespec="seconds").replace("+00:00", "Z"),
+        "verdict": {
+            "score": verdict.score, "band": verdict.band.value, "action": verdict.action,
+            "crypto_override": verdict.crypto_override,
+        },
+        "extracted_identity": {
+            "document_number": fields.passport_number, "nationality": fields.nationality,
+            "expiry": str(fields.date_of_expiry),
+        },
+        "signals": [
+            {"tier": s.tier.value, "check": s.check, "severity": s.severity.value,
+             "weight": s.weight, "message": s.message, "detail": s.detail}
+            for s in verdict.signals
+        ],
+    }
+    return json.dumps(report, indent=2, default=str)
+
+
+def ledger_export_json(records: list[dict]) -> str:
+    """The ledger's records, exactly as stored (including prev_hash/
+    this_hash), so an offline recipient can independently recompute
+    core/crypto/ledger.py's own hash chain over the export -- not a
+    reformatted summary."""
+    return json.dumps({"records": records, "genesis_hash": ledger.GENESIS_HASH}, indent=2, default=str)
+
+
 def registry_status() -> dict | None:
     """Issuer Registry status for Command Center -- record counts by
     status plus a live integrity check (which may lazily sign the manifest

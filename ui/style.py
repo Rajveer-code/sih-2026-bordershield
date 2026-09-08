@@ -1001,6 +1001,37 @@ button[kind="primary"]:hover { opacity: 0.85; }
 /* wide content never scrolls the page body sideways */
 .bsx-scroll-x { overflow-x: auto; }
 [data-testid="stImage"] img { border-radius: var(--radius); }
+
+/* st.download_button renders under its own stDownloadButton wrapper, not
+   .stButton -- the existing button rules above (scoped to .stButton)
+   never reached it, so every export button rendered in Streamlit's raw
+   default red-on-white regardless of theme. Same restrained language as
+   the rest of the console: bordered, mono, uppercase, no colour until
+   hover -- an export action is a convenience, not the page's one CTA. */
+.stDownloadButton > button {
+  width: 100%; background: var(--surface-lowest) !important; color: var(--text-2) !important;
+  border: 1px solid var(--line) !important; border-radius: var(--radius) !important;
+  font-family: var(--font-mono) !important; font-weight: 600 !important; font-size: 0.82rem !important;
+  letter-spacing: 0.1em; text-transform: uppercase; padding: 0.7rem 1rem !important;
+  box-shadow: none; transition: border-color var(--dur-fast) var(--ease-out), color var(--dur-fast) var(--ease-out);
+}
+.stDownloadButton > button p { font-family: inherit !important; font-weight: inherit !important; letter-spacing: inherit; }
+@media (hover: hover) and (pointer: fine) {
+  .stDownloadButton > button:hover:not(:disabled) { border-color: var(--primary) !important; color: var(--text) !important; }
+}
+.stDownloadButton > button:disabled { opacity: 0.45; }
+
+/* Same gap for st.text_input -- unstyled, it rendered as a plain browser
+   input against every other bordered, tokenised surface in the console. */
+.stTextInput > div > div > input {
+  background: var(--surface-lowest) !important; color: var(--text) !important;
+  border: 1px solid var(--line) !important; border-radius: var(--radius) !important;
+  font-family: var(--font-body) !important; font-size: 0.92rem !important;
+  padding: 0.55rem 0.85rem !important; box-shadow: none !important;
+  transition: border-color var(--dur-fast) var(--ease-out);
+}
+.stTextInput > div > div > input:focus { border-color: var(--primary) !important; }
+.stTextInput > div > div > input::placeholder { color: var(--text-3); opacity: 1; }
 </style>
 """
 
