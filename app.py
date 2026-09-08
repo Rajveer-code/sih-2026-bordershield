@@ -25,6 +25,16 @@ if not actions.GENUINE.exists():
              "and `python -m synth.sign` first.")
     st.stop()
 
+# Self-heals a fresh clone / fresh Streamlit Cloud container: committed
+# .sod.json sidecars were signed on whichever machine generated them, and
+# data/pki/ (the keys) is gitignored and per-machine -- see
+# synth/sign.py::ensure_corpus_signed for what this actually detects and
+# why. Guarded so it only runs once per session, not on every rerun.
+if "corpus_signed_checked" not in st.session_state:
+    from synth.sign import ensure_corpus_signed
+    ensure_corpus_signed()
+    st.session_state.corpus_signed_checked = True
+
 if "page" not in st.session_state:
     st.session_state.page = "overview"
 

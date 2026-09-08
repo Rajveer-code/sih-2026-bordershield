@@ -13,7 +13,7 @@ from config import PATHS
 from core.crypto import ledger
 from core.crypto.manifest import sign_document, verify_document
 from core.crypto.pki import generate_csca, generate_dsc, verify_chain
-from core.types import Severity
+from core.types import Band, Severity
 
 GENUINE = PATHS["documents"] / "demo_0001.png"
 ATTACK_A = PATHS["forged"] / "forged_demo_0001_A.png"
@@ -223,6 +223,51 @@ def test_a_fresh_append_after_the_ledger_file_is_gone_does_not_false_flag(tmp_pa
     ok, detail = ledger.verify_no_truncation(path)
     assert ok
     assert detail["expected_count"] == 1
+
+
+def test_ensure_corpus_signed_heals_a_sidecar_signed_by_a_different_machine(tmp_path: Path, monkeypatch):
+    """The actual portability bug this exists to catch: a .sod.json signed
+    by a DIFFERENT machine's PKI is present-but-foreign on disk, not
+    absent -- a naive "does the file exist" check would wrongly treat it
+    as already signed. Confirmed to actually force CRITICAL on the
+    untouched genuine document (the real symptom) before the fix, and
+    LOW again after. Fully isolated: copies the genuine document into a
+    scratch documents/ dir and points PATHS at throwaway pki/forged dirs,
+    so this can never touch the real committed corpus or data/pki/."""
+    import shutil
+
+    from config import PATHS
+    from core.pipeline import screen_document
+    from synth.sign import corpus_needs_signing, ensure_corpus_signed
+
+    scratch_documents = tmp_path / "documents"
+    scratch_documents.mkdir()
+    scratch_forged = tmp_path / "forged"
+    scratch_forged.mkdir()
+    real_documents = PATHS["documents"]
+    shutil.copy(real_documents / "demo_0001.png", scratch_documents / "demo_0001.png")
+    shutil.copy(real_documents / "demo_0001.json", scratch_documents / "demo_0001.json")
+
+    monkeypatch.setitem(PATHS, "documents", scratch_documents)
+    monkeypatch.setitem(PATHS, "forged", scratch_forged)
+
+    # PKI "A" -- the machine that originally signs this scratch corpus.
+    monkeypatch.setitem(PATHS, "pki", tmp_path / "pki_a")
+    assert corpus_needs_signing() is True
+    ensure_corpus_signed()
+    assert corpus_needs_signing() is False
+
+    # PKI "B" -- a different machine, its own unrelated freshly-generated
+    # keys. The sidecar PKI A signed is still on disk: present, foreign.
+    monkeypatch.setitem(PATHS, "pki", tmp_path / "pki_b")
+    assert corpus_needs_signing() is True
+    verdict, _ = screen_document(scratch_documents / "demo_0001.png")
+    assert verdict.band == Band.CRITICAL, "confirms the bug: an untouched genuine document forced CRITICAL"
+
+    ensure_corpus_signed()
+    assert corpus_needs_signing() is False
+    verdict, _ = screen_document(scratch_documents / "demo_0001.png")
+    assert verdict.band == Band.LOW, "confirms the fix: re-signed with PKI B, genuine clears again"
 
 
 def test_ledger_never_stores_pii_by_construction():
