@@ -16,6 +16,9 @@ PATHS = {
     "documents": ROOT / "data" / "documents",       # generated genuine docs
     "forged": ROOT / "data" / "forged",             # generated attacks
     "pki": ROOT / "data" / "pki",                   # demo signing authority
+    "registry": ROOT / "data" / "registry",         # synthetic issuer registry (core/issuer/)
+    "registry_db": ROOT / "data" / "registry" / "registry.db",
+    "registry_manifest": ROOT / "data" / "registry" / "manifest.json",  # gitignored -- signed lazily per machine
     "results": ROOT / "results",
     "cases": ROOT / "results" / "cases",
     "core": ROOT / "core",
