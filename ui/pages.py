@@ -46,7 +46,7 @@ def render_landing() -> None:
 
     with st.container():
         st.markdown("<div class='bsx-tier-head'>The trust ladder</div>", unsafe_allow_html=True)
-        st.caption("Four tiers, evaluated in this order. A tier's authority is fixed by the "
+        st.caption("Five tiers, evaluated in this order. A tier's authority is fixed by the "
                     "architecture, not by how confident a model happens to be.")
         st.write("")
         st.markdown(screens.trust_ladder_html(), unsafe_allow_html=True)
@@ -54,7 +54,7 @@ def render_landing() -> None:
     st.write("")
     with st.container():
         st.markdown("<div class='bsx-tier-head'>Start here</div>", unsafe_allow_html=True)
-        st.caption("Six controlled attack vectors are wired to the real pipeline. Each one forges a "
+        st.caption("Thirteen controlled scenarios are wired to the real pipeline. Each one builds a "
                     "document, screens it end to end, and writes a hash-chained case.")
         st.write("")
         c1, c2, c3 = st.columns([1, 1, 2])
@@ -98,6 +98,19 @@ def render_dashboard() -> None:
     face_ready = all(m["exists"] for m in models if "Face" in m["label"])
     critical = sum(1 for r in records if r.get("band") == "CRITICAL")
     high_review = sum(1 for r in records if r.get("band") in ("HIGH", "CRITICAL"))
+    registry = actions.registry_status()
+    if registry is None:
+        registry_card = screens.status_card_html(
+            "Issuer registry", "NOT GENERATED",
+            pill=("neutral", "RUN synth.registry"), sub="Synthetic / demo registry")
+    else:
+        stats = registry["stats"]
+        registry_card = screens.status_card_html(
+            "Issuer registry", f"{stats['TOTAL']} records",
+            pill=("ok", "VALID") if registry["integrity_valid"] else ("bad", "COMPROMISED"),
+            sub=(f"{stats['ACTIVE']} active · {stats['REVOKED']} revoked · "
+                 f"{stats['STOLEN']} stolen · {stats['EXPIRED']} expired · "
+                 f"{stats['INVALID']} invalid · synthetic/demo"))
     st.markdown(screens.status_grid_html([
         screens.status_card_html(
             "Biometric models", "READY" if face_ready else "MISSING",
@@ -107,6 +120,7 @@ def render_dashboard() -> None:
             "Signing PKI", "INITIALIZED" if actions.pki_loaded() else "NOT SET UP",
             pill=("ok", "LOADED") if actions.pki_loaded() else ("neutral", "LAZY INIT"),
             sub="Demo authority · ECDSA P-256"),
+        registry_card,
         screens.status_card_html(
             "Ledger chain", "INTACT" if chain_ok else f"BROKEN AT #{broken_at}",
             pill=("ok", "VERIFIED") if chain_ok else ("bad", "TAMPERED")),
@@ -123,11 +137,14 @@ def render_dashboard() -> None:
             "<span style='font-family:var(--font-mono);font-size:0.74rem;color:var(--text-3);"
             "border:1px solid var(--line);border-radius:2px;padding:0.2rem 0.5rem;letter-spacing:0.12em;'>"
             "DEMO ENVIRONMENT</span></div>", unsafe_allow_html=True)
-        st.caption("Six controlled experiments, not six travellers. Each card builds a synthetic document "
-                    "with one specific thing wrong with it, screens it through the real pipeline, and writes "
-                    "a real case record. The tag on each card names the layer that should catch it.")
+        st.caption("Thirteen controlled experiments, not thirteen travellers. Each card builds a "
+                    "synthetic document, screens it through the real pipeline, and writes a real case "
+                    "record -- most have something wrong with the document itself, seven have nothing "
+                    "wrong with the document at all (the issuer registry disagrees, a second credential "
+                    "shares its biometric reference, or -- for the unregistered case -- there's honestly "
+                    "nothing to compare against). The tag on each card names the layer that should "
+                    "catch it.")
         st.write("")
-        cols = st.columns(6)
         specs = [
             ("scn_genuine", "SCN_01", "ALL TIERS", "Genuine document", None,
              "The untouched synthetic document. Every tier should pass, clearing at LOW."),
@@ -144,27 +161,62 @@ def render_dashboard() -> None:
              "this one is blocked in this build."),
             ("scn_sig", "SCN_06", "T0 CRYPTO", "Break the signature", "SIG",
              "Hand-tamper an already-signed manifest. Signature fails -- CRITICAL, no model consulted."),
+            ("scn_revoked", "SCN_08", "T1 ISSUER", "Perfect document, revoked", "REVOKED",
+             "MRZ, VIZ, crosszone AND the signature all pass cleanly -- no pixel is forged. Only the "
+             "issuer registry says this document was revoked after issue."),
+            ("scn_mismatch", "SCN_10", "T1 ISSUER", "Valid number, wrong identity", "MISMATCH",
+             "A real, ACTIVE document number, self-consistently printed under a different name and "
+             "DOB than the registry has on file for it. Nothing about the document itself is broken."),
+            ("scn_linked", "SCN_11", "T2 IDENTITY", "Same person, multiple identities", "LINKED",
+             "This document's own registry record is perfectly clean. Its biometric reference is ALSO "
+             "on record under a different name and document number -- advisory only, capped at HIGH."),
+            ("scn_stolen", "SCN_09", "T1 ISSUER", "Stolen document", "STOLEN",
+             "A self-consistent, cleanly-signed document. The issuer registry marks it STOLEN -- "
+             "critical, the same way REVOKED is, for the same reason: no pixel needs to be forged."),
+            ("scn_unregistered", "SCN_07", "T1 ISSUER", "Unregistered document", "UNREGISTERED",
+             "A document number the registry has never heard of. Correctly reported as \"issuance "
+             "could not be established\" -- never reported as fake for the honest reason it isn't."),
+            ("scn_expired_reg", "SCN_09B", "T1 ISSUER", "Registry record expired", "EXPIRED",
+             "The document's OWN printed dates are current -- expiry_in_past passes cleanly. Only the "
+             "issuer's older record for this number is marked EXPIRED."),
+            ("scn_invalid", "SCN_09C", "T1 ISSUER", "Registry record invalid", "INVALID",
+             "Distinct from REVOKED: never validly standing to begin with, rather than issued then "
+             "later invalidated. Completes all 5 registry status values as live scenarios."),
         ]
-        for col, (key, sid, layer, title, code, desc) in zip(cols, specs):
-            with col:
-                with st.container(key=key):
-                    st.markdown(screens.scenario_card_head_html(sid, layer, title, desc),
-                                 unsafe_allow_html=True)
-                    if code == "FACE":
-                        st.button("Run scenario", key=f"{key}_btn", use_container_width=True, disabled=True,
-                                   help="Blocked: needs a SECOND, different person's real photo. One real "
-                                        "identity is on file in data/portraits/ (live face MATCH already "
-                                        "verified working via New Screening) -- a genuine mismatch demo needs "
-                                        "someone else's photo too, not just this one person's.")
-                    elif st.button("Run scenario", key=f"{key}_btn", use_container_width=True):
-                        if code is None:
-                            actions.run_and_log(actions.GENUINE, None)
-                        elif code == "SIG":
-                            actions.break_signature_attack()
-                        else:
-                            actions.run_and_log(actions.ATTACKS[code], code)
-                        st.session_state.page = "case"
-                        st.rerun()
+        for row_start in range(0, len(specs), 4):
+            cols = st.columns(4)
+            for col, (key, sid, layer, title, code, desc) in zip(cols, specs[row_start:row_start + 4]):
+                with col:
+                    with st.container(key=key):
+                        st.markdown(screens.scenario_card_head_html(sid, layer, title, desc),
+                                     unsafe_allow_html=True)
+                        if code == "FACE":
+                            st.button("Run scenario", key=f"{key}_btn", use_container_width=True, disabled=True,
+                                       help="Blocked: needs a SECOND, different person's real photo. One real "
+                                            "identity is on file in data/portraits/ (live face MATCH already "
+                                            "verified working via New Screening) -- a genuine mismatch demo needs "
+                                            "someone else's photo too, not just this one person's.")
+                        elif st.button("Run scenario", key=f"{key}_btn", use_container_width=True):
+                            if code is None:
+                                actions.run_and_log(actions.GENUINE, None)
+                            elif code == "SIG":
+                                actions.break_signature_attack()
+                            else:
+                                actions.run_and_log(actions.ATTACKS[code], code)
+                            st.session_state.page = "case"
+                            st.rerun()
+
+    st.write("")
+    with st.container():
+        st.markdown("<div class='bsx-tier-head'>Registry integrity demo</div>", unsafe_allow_html=True)
+        st.caption("Hand-edits a scratch COPY of the registry (REG-0002: REVOKED → ACTIVE) without "
+                    "recomputing its fingerprint, then checks integrity before and after. Never touches "
+                    "the real, committed registry -- nothing to reset.")
+        if st.button("Simulate registry tampering", key="registry_tamper_btn"):
+            st.session_state.registry_tamper_result = actions.simulate_registry_tampering()
+        result = st.session_state.get("registry_tamper_result")
+        if result:
+            st.markdown(screens.registry_tamper_result_html(result), unsafe_allow_html=True)
 
     st.write("")
     with st.container():
@@ -462,7 +514,7 @@ def render_case() -> None:
     with col_right:
         with st.container():
             st.markdown("<div class='bsx-tier-head'>Trust ladder</div>", unsafe_allow_html=True)
-            st.caption("Four checks, in order of authority. Each row states the question it asks, "
+            st.caption("Five checks, in order of authority. Each row states the question it asks, "
                         "then what it found on this document.")
             st.markdown(screens.verification_sequence_html(verdict), unsafe_allow_html=True)
 
@@ -529,6 +581,18 @@ def render_case() -> None:
                 f"<span class='bsx-field-value'>{fields.date_of_expiry}</span></div>"
                 "</div>", unsafe_allow_html=True)
 
+        with st.container():
+            st.markdown("<div class='bsx-tier-head'>Issuer registry</div>", unsafe_allow_html=True)
+            st.caption("Synthetic / demo registry — UTO Demo Issuance Authority. Not a real "
+                        "government system.")
+            st.markdown(screens.issuer_provenance_html(verdict), unsafe_allow_html=True)
+
+        with st.container():
+            st.markdown("<div class='bsx-tier-head'>Identity continuity</div>", unsafe_allow_html=True)
+            st.caption("Cross-references the issuer registry for another credential sharing this "
+                        "one's biometric reference — a registry lookup, not a face-similarity score.")
+            st.markdown(screens.identity_continuity_html(verdict), unsafe_allow_html=True)
+
 
 def render_audit() -> None:
     """The ledger across ALL cases -- deliberately a separate destination
@@ -536,12 +600,14 @@ def render_audit() -> None:
     not any one screening."""
     records = ledger_module.read_all()
     ok, broken_at = ledger_module.verify_chain()
+    untruncated, trunc_detail = ledger_module.verify_no_truncation()
 
     st.markdown(screens.topbar_html(
         "Audit trail",
         "Every screening appends a hash-chained record. Editing any past record in place breaks the "
-        "chain at exactly that index and the verifier names it.",
-        eyebrow="Tamper-evident ledger", chain_ok=ok), unsafe_allow_html=True)
+        "chain at exactly that index and the verifier names it; deleting the newest record(s) is caught "
+        "separately, against a signed checkpoint.",
+        eyebrow="Tamper-evident ledger", chain_ok=(ok and untruncated)), unsafe_allow_html=True)
 
     col_left, col_right = st.columns([1.3, 1], gap="large")
     with col_left:
@@ -566,7 +632,12 @@ def render_audit() -> None:
             # keeps this pill naming the SAME record the card above it does.
             pill_cls, pill_txt = ("ok", "Audit ledger — intact") if ok else \
                 ("broken", f"Chain broken at record #{broken_at + 1:04d}")
-            st.markdown(f"<span class='bsx-chain-pill {pill_cls}'>{pill_txt}</span>", unsafe_allow_html=True)
+            trunc_cls, trunc_txt = ("ok", "No truncation detected") if untruncated else \
+                ("broken", trunc_detail.get("reason", "Truncation detected"))
+            st.markdown(f"<span class='bsx-chain-pill {pill_cls}'>{pill_txt}</span> "
+                         f"<span class='bsx-chain-pill {trunc_cls}'>{trunc_txt}</span>", unsafe_allow_html=True)
+            if not untruncated and "detail" in trunc_detail:
+                st.caption(trunc_detail["detail"])
             st.write("")
             # States what the chain does AND does not prove. Without the
             # second half an officer can reasonably read "intact" as "these
@@ -575,9 +646,12 @@ def render_audit() -> None:
             st.markdown(
                 "<div class='bsx-limits'><div class='k'>What this proves</div>"
                 "<p>Each record carries a fingerprint of the one before it, so editing any stored "
-                "record breaks the chain from that point on and the verifier names it.<br><br>"
-                "<b>It does not prove any document is authentic.</b> It proves our record of the "
-                "screening has not been altered after the fact.</p></div>", unsafe_allow_html=True)
+                "record breaks the chain from that point on and the verifier names it. A signed "
+                "checkpoint, updated on every write, catches the other case a hash chain alone can't -- "
+                "someone deleting the most recent record(s) and stopping.<br><br>"
+                "<b>Neither proves any document is authentic.</b> Together they prove our record of "
+                "the screenings has not been altered OR shortened after the fact.</p></div>",
+                unsafe_allow_html=True)
             st.write("")
             if st.button("Re-verify chain", icon=":material/verified_user:", use_container_width=True,
                           key="verify_chain_btn"):
@@ -588,6 +662,14 @@ def render_audit() -> None:
             st.caption("Rewrite a past verdict by hand, then re-verify: the chain should name the broken record.")
             if st.button("Simulate tampering with a past case", use_container_width=True, key="tamper_btn"):
                 if not actions.simulate_tamper():
+                    st.warning("Screen at least one document first.")
+                else:
+                    st.rerun()
+            st.caption("Delete the newest record outright instead of editing one -- the chain alone stays "
+                        "self-consistent; the signed checkpoint is what catches this.")
+            if st.button("Simulate truncation (delete newest record)", use_container_width=True,
+                          key="truncate_btn"):
+                if not actions.simulate_truncation():
                     st.warning("Screen at least one document first.")
                 else:
                     st.rerun()
@@ -696,10 +778,10 @@ def render_status() -> None:
             st.markdown(
                 "<p style='color:var(--text-2);font-size:0.92rem;line-height:1.6;margin-top:0.9rem;'>"
                 "<b>Two hard overrides</b> (core/risk.py), checked before the additive score: "
-                "an invalid signature forces CRITICAL regardless of total; a failed T1 rule floors the "
-                "verdict at CRITICAL (76). With no rule or signature failure, forensic and biometric "
-                "signals alone cap the verdict at HIGH -- they can raise a case for review, never "
-                "condemn one on their own.</p>", unsafe_allow_html=True)
+                "an invalid signature forces CRITICAL regardless of total; a failed T1 check (document "
+                "rules or issuer registry) floors the verdict at CRITICAL (76). With no T1 or signature "
+                "failure, forensic and biometric signals alone cap the verdict at HIGH -- they can raise "
+                "a case for review, never condemn one on their own.</p>", unsafe_allow_html=True)
 
         with st.container():
             st.markdown("<div class='bsx-tier-head'>Ledger</div>", unsafe_allow_html=True)
@@ -711,6 +793,18 @@ def render_status() -> None:
                 f"<span class='bsx-field-value'>{'INTACT' if chain_ok else f'BROKEN AT #{broken_at}'}</span></div>"
                 "</div>", unsafe_allow_html=True)
             st.code(f"GENESIS  {ledger_module.GENESIS_HASH}", language=None)
+
+    st.write("")
+    with st.container():
+        st.markdown("<div class='bsx-tier-head'>Issuer registry — full contents</div>",
+                     unsafe_allow_html=True)
+        st.caption("Synthetic / demo registry (UTO Demo Issuance Authority), read directly off "
+                    "data/registry/registry.db -- not a mockup table, the actual rows every screening "
+                    "in this console is checked against.")
+        from core.issuer.registry import get_default_registry
+        registry_records = get_default_registry().all_records()
+        st.markdown("<div class='bsx-scroll-x'>" + screens.registry_records_table_html(registry_records)
+                     + "</div>", unsafe_allow_html=True)
 
 
 # Back-compat: older session_state may still hold one of the three retired

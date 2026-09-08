@@ -430,7 +430,7 @@ section[data-testid="stSidebar"] .stButton > button p { font-family: inherit !im
    composition instead of four interchangeable tiles. Fixed columns need
    an explicit mobile stack since they lose auto-fit's intrinsic reflow --
    see the 640px override below. */
-.bsx-status-grid { display:grid; grid-template-columns: 1fr 1fr 1fr 1.6fr; gap: 1px;
+.bsx-status-grid { display:grid; grid-template-columns: repeat(auto-fit, minmax(196px, 1fr)); gap: 1px;
   background: var(--line); border: 1px solid var(--line); border-radius: var(--radius-lg); overflow: hidden; }
 .bsx-status-card { background: var(--surface-lowest); padding: 1.2rem 1.3rem;
   animation: bsx-rise var(--dur) var(--ease-out) backwards; }
