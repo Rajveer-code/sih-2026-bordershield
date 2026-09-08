@@ -461,34 +461,53 @@ section[data-testid="stSidebar"] .stButton > button p { font-family: inherit !im
    uppercase button standing in for a card. See ui/screens.py
    scenario_card_head_html for why the button is split from the markup.
 
-   Laid out via st.columns(6) in ui/pages.py, not a CSS grid parent: a
-   plain st.container() -- with or without key= -- does not emit the
-   stVerticalBlockBorderWrapper testid in this Streamlit version (checked
-   directly against the running app: zero instances anywhere), so there
-   is no single wrapping element these six containers could share a grid
-   parent through. Each card is self-sufficient instead -- its own
-   border, radius and background declared directly on the .st-key-scn_*
-   selector -- rather than depending on Streamlit's border argument or a
-   shared grid ancestor that doesn't exist. */
+   Laid out via st.columns(4) in chunks of 4 (13 cards, 4+4+4+1) in
+   ui/pages.py, not a CSS grid parent: a plain st.container() -- with or
+   without key= -- does not emit the stVerticalBlockBorderWrapper testid
+   in this Streamlit version (checked directly against the running app:
+   zero instances anywhere), so there is no single wrapping element these
+   containers could share a grid parent through. Each card is
+   self-sufficient instead -- its own border, radius and background
+   declared directly on the .st-key-scn_* selector -- rather than
+   depending on Streamlit's border argument or a shared grid ancestor
+   that doesn't exist.
+
+   13 keys now, not the original 6: the 7 registry/identity scenarios
+   (revoked/mismatch/linked/stolen/unregistered/expired_reg/invalid)
+   added after this block was first written were never added to it, so
+   they rendered as plain unstyled boxes with default Streamlit buttons
+   next to 6 fully-designed cards -- caught reading this file in full for
+   the premium pass, not from a screenshot. Every rule below now lists
+   all 13; nothing about the pattern itself changed. */
 .st-key-scn_genuine, .st-key-scn_dob, .st-key-scn_photo, .st-key-scn_recapture,
-.st-key-scn_face, .st-key-scn_sig {
+.st-key-scn_face, .st-key-scn_sig, .st-key-scn_revoked, .st-key-scn_mismatch,
+.st-key-scn_linked, .st-key-scn_stolen, .st-key-scn_unregistered,
+.st-key-scn_expired_reg, .st-key-scn_invalid {
   background: var(--surface-lowest) !important; border: 1px solid var(--line) !important;
   border-radius: var(--radius-lg) !important; padding: 1.1rem 1.2rem 0.9rem 1.2rem !important;
   transition: background-color var(--dur-fast) var(--ease-out), border-color var(--dur-fast) var(--ease-out),
               border-left-width var(--dur-fast) var(--ease-out);
   animation: bsx-rise var(--dur) var(--ease-out) backwards;
 }
-/* entrance stagger -- these six were firing simultaneously (no delay), the
-   one motion gap this pass found: every other card grid in the app
-   staggers, this one didn't. Explicit per-selector delay, not nth-child:
-   each card is its own uniquely-keyed .st-key-scn_* class (see the
-   comment above), not siblings a structural selector can index. */
+/* entrance stagger -- explicit per-selector delay, not nth-child: each
+   card is its own uniquely-keyed .st-key-scn_* class (see comment
+   above), not siblings a structural selector can index. Capped at 200ms
+   (repeating the last few delays) rather than counting out to 480ms for
+   13 cards -- a stagger that long reads as sluggish, not premium; see
+   the module docstring's own 275ms finding for page-level nav. */
 .st-key-scn_genuine { animation-delay: 0ms; }
 .st-key-scn_dob { animation-delay: 40ms; }
 .st-key-scn_photo { animation-delay: 80ms; }
 .st-key-scn_recapture { animation-delay: 120ms; }
 .st-key-scn_face { animation-delay: 160ms; }
 .st-key-scn_sig { animation-delay: 200ms; }
+.st-key-scn_revoked { animation-delay: 0ms; }
+.st-key-scn_mismatch { animation-delay: 40ms; }
+.st-key-scn_linked { animation-delay: 80ms; }
+.st-key-scn_stolen { animation-delay: 120ms; }
+.st-key-scn_unregistered { animation-delay: 160ms; }
+.st-key-scn_expired_reg { animation-delay: 200ms; }
+.st-key-scn_invalid { animation-delay: 200ms; }
 /* Stacked, NOT a space-between row. These six cards sit in st.columns(6),
    so each is ~200px wide; a side-by-side numeral + layer badge overflowed
    the card outright once the numeral grew to 1.6rem -- "T0 CRYPTO / T2
@@ -521,8 +540,10 @@ section[data-testid="stSidebar"] .stButton > button p { font-family: inherit !im
    resolves against auto-height intermediate wrappers and collapses back
    to content height -- so the whole chain
    stColumn > stVerticalBlock > stLayoutWrapper > card needs stretching.
-   Scoped by :has(.st-key-scn_genuine) to the scenario row only, so no
-   other st.columns layout in the app is affected.
+   Scoped by :has(.st-key-scn_genuine) to the scenario rows -- every card
+   row shares this one genuine card as an anchor, so one selector covers
+   all three st.columns(4) chunks in ui/pages.py without needing a rule
+   per row. No other st.columns layout in the app is affected.
 
    The column itself must NOT get height:100%: the row's height is
    content-derived, so a percentage resolves against auto and collapses --
@@ -537,7 +558,9 @@ div[data-testid="stHorizontalBlock"]:has(.st-key-scn_genuine) div[data-testid="s
   height: 100%;
 }
 .st-key-scn_genuine, .st-key-scn_dob, .st-key-scn_photo, .st-key-scn_recapture,
-.st-key-scn_face, .st-key-scn_sig {
+.st-key-scn_face, .st-key-scn_sig, .st-key-scn_revoked, .st-key-scn_mismatch,
+.st-key-scn_linked, .st-key-scn_stolen, .st-key-scn_unregistered,
+.st-key-scn_expired_reg, .st-key-scn_invalid {
   height: 100%; display: flex !important; flex-direction: column !important;
 }
 /* margin-top:auto has to sit on the card's DIRECT flex child, and that is
@@ -549,7 +572,14 @@ div[data-testid="stHorizontalBlock"]:has(.st-key-scn_genuine) div[data-testid="s
 .st-key-scn_photo > [data-testid="stElementContainer"]:has(.stButton),
 .st-key-scn_recapture > [data-testid="stElementContainer"]:has(.stButton),
 .st-key-scn_face > [data-testid="stElementContainer"]:has(.stButton),
-.st-key-scn_sig > [data-testid="stElementContainer"]:has(.stButton) {
+.st-key-scn_sig > [data-testid="stElementContainer"]:has(.stButton),
+.st-key-scn_revoked > [data-testid="stElementContainer"]:has(.stButton),
+.st-key-scn_mismatch > [data-testid="stElementContainer"]:has(.stButton),
+.st-key-scn_linked > [data-testid="stElementContainer"]:has(.stButton),
+.st-key-scn_stolen > [data-testid="stElementContainer"]:has(.stButton),
+.st-key-scn_unregistered > [data-testid="stElementContainer"]:has(.stButton),
+.st-key-scn_expired_reg > [data-testid="stElementContainer"]:has(.stButton),
+.st-key-scn_invalid > [data-testid="stElementContainer"]:has(.stButton) {
   margin-top: auto !important;
 }
 /* Descendant selectors, not .stButton > button: a disabled button with a
@@ -562,7 +592,11 @@ div[data-testid="stHorizontalBlock"]:has(.st-key-scn_genuine) div[data-testid="s
    styles between an enabled and the disabled card, not by inspection. */
 .st-key-scn_genuine .stButton button, .st-key-scn_dob .stButton button,
 .st-key-scn_photo .stButton button, .st-key-scn_recapture .stButton button,
-.st-key-scn_face .stButton button, .st-key-scn_sig .stButton button {
+.st-key-scn_face .stButton button, .st-key-scn_sig .stButton button,
+.st-key-scn_revoked .stButton button, .st-key-scn_mismatch .stButton button,
+.st-key-scn_linked .stButton button, .st-key-scn_stolen .stButton button,
+.st-key-scn_unregistered .stButton button, .st-key-scn_expired_reg .stButton button,
+.st-key-scn_invalid .stButton button {
   width: 100% !important; background: transparent !important; color: var(--text-2) !important;
   border: none !important; border-top: 1px solid var(--line-soft) !important; border-radius: 0 !important;
   font-family: var(--font-mono) !important; font-weight: 600 !important; font-size: 0.78rem !important;
@@ -575,21 +609,37 @@ div[data-testid="stHorizontalBlock"]:has(.st-key-scn_genuine) div[data-testid="s
 .st-key-scn_face .stButton button:disabled, .st-key-scn_sig .stButton button:disabled {
   color: var(--text-3) !important; opacity: 1 !important;
 }
+/* Colour grouping follows the same TIER logic the original 6 already
+   established (checked against the rules immediately below, not chosen
+   fresh): amber for T0/T1 -- structural/mathematical attacks a rule or
+   the issuer registry catches; red for T2 -- forensic/biometric/identity
+   attacks, the visually-adjacent tier. All 7 new issuer-registry
+   scenarios are T1 ISSUER except Linked Identity, which is T2 IDENTITY. */
 @media (hover: hover) and (pointer: fine) {
-  .st-key-scn_dob:hover, .st-key-scn_photo:hover, .st-key-scn_sig:hover {
+  .st-key-scn_dob:hover, .st-key-scn_photo:hover, .st-key-scn_sig:hover,
+  .st-key-scn_revoked:hover, .st-key-scn_mismatch:hover, .st-key-scn_stolen:hover,
+  .st-key-scn_unregistered:hover, .st-key-scn_expired_reg:hover, .st-key-scn_invalid:hover {
     background: var(--amber-bg) !important; border-color: var(--amber) !important; border-left-width: 4px !important; }
   .st-key-scn_dob:hover .bsx-scenario-layer, .st-key-scn_photo:hover .bsx-scenario-layer,
-  .st-key-scn_sig:hover .bsx-scenario-layer { color: var(--amber); border-color: var(--amber-line); }
-  .st-key-scn_recapture:hover, .st-key-scn_face:hover {
+  .st-key-scn_sig:hover .bsx-scenario-layer, .st-key-scn_revoked:hover .bsx-scenario-layer,
+  .st-key-scn_mismatch:hover .bsx-scenario-layer, .st-key-scn_stolen:hover .bsx-scenario-layer,
+  .st-key-scn_unregistered:hover .bsx-scenario-layer, .st-key-scn_expired_reg:hover .bsx-scenario-layer,
+  .st-key-scn_invalid:hover .bsx-scenario-layer { color: var(--amber); border-color: var(--amber-line); }
+  .st-key-scn_recapture:hover, .st-key-scn_face:hover, .st-key-scn_linked:hover {
     background: var(--red-bg) !important; border-color: var(--red) !important; border-left-width: 4px !important; }
-  .st-key-scn_recapture:hover .bsx-scenario-layer, .st-key-scn_face:hover .bsx-scenario-layer {
+  .st-key-scn_recapture:hover .bsx-scenario-layer, .st-key-scn_face:hover .bsx-scenario-layer,
+  .st-key-scn_linked:hover .bsx-scenario-layer {
     color: var(--red); border-color: var(--red-line); }
   .st-key-scn_genuine:hover {
     background: var(--green-bg) !important; border-color: var(--green) !important; border-left-width: 4px !important; }
   .st-key-scn_genuine:hover .bsx-scenario-layer { color: var(--green); border-color: var(--green-line); }
   .st-key-scn_genuine .stButton button:hover, .st-key-scn_dob .stButton button:hover,
   .st-key-scn_photo .stButton button:hover, .st-key-scn_recapture .stButton button:hover,
-  .st-key-scn_face .stButton button:hover, .st-key-scn_sig .stButton button:hover {
+  .st-key-scn_face .stButton button:hover, .st-key-scn_sig .stButton button:hover,
+  .st-key-scn_revoked .stButton button:hover, .st-key-scn_mismatch .stButton button:hover,
+  .st-key-scn_linked .stButton button:hover, .st-key-scn_stolen .stButton button:hover,
+  .st-key-scn_unregistered .stButton button:hover, .st-key-scn_expired_reg .stButton button:hover,
+  .st-key-scn_invalid .stButton button:hover {
     color: var(--text) !important; }
 }
 
