@@ -1,0 +1,85 @@
+{
+  "issuing_state": "UTO",
+  "fields": {
+    "surname": "PATEL",
+    "given_names": "RAVI",
+    "passport_number": "181960013",
+    "nationality": "UTO",
+    "date_of_birth": "15 MAR 1985",
+    "sex": "M",
+    "date_of_issue": "08 MAY 2024",
+    "date_of_expiry": "08 MAY 2034",
+    "mrz_line1": "P<UTOPATEL<<RAVI<<<<<<<<<<<<<<<<<<<<<<<<<<<<",
+    "mrz_line2": "1819600139UTO8503150M3405086<<<<<<<<<<<<<<02"
+  },
+  "raw_dates": {
+    "date_of_birth": "1985-03-15",
+    "date_of_issue": "2024-05-08",
+    "date_of_expiry": "2034-05-08"
+  },
+  "bboxes": {
+    "portrait": [
+      60,
+      150,
+      280,
+      430
+    ],
+    "mrz_band_xywh": [
+      16,
+      612,
+      880,
+      64
+    ],
+    "surname": [
+      520,
+      150,
+      820,
+      176
+    ],
+    "given_names": [
+      520,
+      196,
+      820,
+      222
+    ],
+    "passport_number": [
+      520,
+      242,
+      655,
+      268
+    ],
+    "nationality": [
+      520,
+      288,
+      565,
+      314
+    ],
+    "date_of_birth": [
+      520,
+      334,
+      685,
+      360
+    ],
+    "sex": [
+      520,
+      380,
+      535,
+      406
+    ],
+    "date_of_issue": [
+      520,
+      426,
+      685,
+      452
+    ],
+    "date_of_expiry": [
+      520,
+      472,
+      685,
+      498
+    ]
+  },
+  "portrait_source": "user_supplied:WIN_20260828_00_08_49_Pro.jpg",
+  "watermark": "DEMO \u2014 NOT A TRAVEL DOCUMENT",
+  "doc_id": "demo_mismatch_0001"
+}

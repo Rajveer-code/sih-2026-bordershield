@@ -1,0 +1,85 @@
+{
+  "issuing_state": "UTO",
+  "fields": {
+    "surname": "KHAN",
+    "given_names": "SAMEER",
+    "passport_number": "900000002",
+    "nationality": "UTO",
+    "date_of_birth": "12 MAY 1998",
+    "sex": "M",
+    "date_of_issue": "01 JAN 2015",
+    "date_of_expiry": "01 JAN 2032",
+    "mrz_line1": "P<UTOKHAN<<SAMEER<<<<<<<<<<<<<<<<<<<<<<<<<<<",
+    "mrz_line2": "9000000025UTO9805127M3201015<<<<<<<<<<<<<<02"
+  },
+  "raw_dates": {
+    "date_of_birth": "1998-05-12",
+    "date_of_issue": "2015-01-01",
+    "date_of_expiry": "2032-01-01"
+  },
+  "bboxes": {
+    "portrait": [
+      60,
+      150,
+      280,
+      430
+    ],
+    "mrz_band_xywh": [
+      16,
+      612,
+      880,
+      64
+    ],
+    "surname": [
+      520,
+      150,
+      820,
+      176
+    ],
+    "given_names": [
+      520,
+      196,
+      820,
+      222
+    ],
+    "passport_number": [
+      520,
+      242,
+      655,
+      268
+    ],
+    "nationality": [
+      520,
+      288,
+      565,
+      314
+    ],
+    "date_of_birth": [
+      520,
+      334,
+      685,
+      360
+    ],
+    "sex": [
+      520,
+      380,
+      535,
+      406
+    ],
+    "date_of_issue": [
+      520,
+      426,
+      685,
+      452
+    ],
+    "date_of_expiry": [
+      520,
+      472,
+      685,
+      498
+    ]
+  },
+  "portrait_source": "user_supplied:WIN_20260828_00_08_49_Pro.jpg",
+  "watermark": "DEMO \u2014 NOT A TRAVEL DOCUMENT",
+  "doc_id": "demo_revoked_0002"
+}

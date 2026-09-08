@@ -1,0 +1,85 @@
+{
+  "issuing_state": "UTO",
+  "fields": {
+    "surname": "MEHTA",
+    "given_names": "ARJUN",
+    "passport_number": "900000006",
+    "nationality": "UTO",
+    "date_of_birth": "14 SEP 1993",
+    "sex": "M",
+    "date_of_issue": "01 MAR 2021",
+    "date_of_expiry": "01 MAR 2031",
+    "mrz_line1": "P<UTOMEHTA<<ARJUN<<<<<<<<<<<<<<<<<<<<<<<<<<<",
+    "mrz_line2": "9000000069UTO9309142M3103016<<<<<<<<<<<<<<06"
+  },
+  "raw_dates": {
+    "date_of_birth": "1993-09-14",
+    "date_of_issue": "2021-03-01",
+    "date_of_expiry": "2031-03-01"
+  },
+  "bboxes": {
+    "portrait": [
+      60,
+      150,
+      280,
+      430
+    ],
+    "mrz_band_xywh": [
+      16,
+      612,
+      880,
+      64
+    ],
+    "surname": [
+      520,
+      150,
+      820,
+      176
+    ],
+    "given_names": [
+      520,
+      196,
+      820,
+      222
+    ],
+    "passport_number": [
+      520,
+      242,
+      655,
+      268
+    ],
+    "nationality": [
+      520,
+      288,
+      565,
+      314
+    ],
+    "date_of_birth": [
+      520,
+      334,
+      685,
+      360
+    ],
+    "sex": [
+      520,
+      380,
+      535,
+      406
+    ],
+    "date_of_issue": [
+      520,
+      426,
+      685,
+      452
+    ],
+    "date_of_expiry": [
+      520,
+      472,
+      685,
+      498
+    ]
+  },
+  "portrait_source": "user_supplied:WIN_20260828_00_08_49_Pro.jpg",
+  "watermark": "DEMO \u2014 NOT A TRAVEL DOCUMENT",
+  "doc_id": "demo_linked_0006"
+}
