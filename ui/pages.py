@@ -531,7 +531,7 @@ def render_case() -> None:
     with col_right:
         with st.container():
             st.markdown("<div class='bsx-tier-head'>Trust ladder</div>", unsafe_allow_html=True)
-            st.caption("Five checks, in order of authority. Each row states the question it asks, "
+            st.caption("Six checks, in order of authority. Each row states the question it asks, "
                         "then what it found on this document.")
             st.markdown(screens.verification_sequence_html(verdict), unsafe_allow_html=True)
 
