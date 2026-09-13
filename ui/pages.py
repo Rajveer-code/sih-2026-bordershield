@@ -234,9 +234,18 @@ def render_dashboard() -> None:
 def render_capture() -> None:
     chain_ok, _ = ledger_module.verify_chain()
     st.markdown(screens.topbar_html(
-        "New screening", "Present a document and, optionally, the face of the person carrying it.",
+        "New screening",
+        "Upload a document and, optionally, a face photo — the same pipeline the Attack Wall "
+        "runs, on whatever you actually hand it.",
         eyebrow="Intake", chain_ok=chain_ok), unsafe_allow_html=True)
 
+    st.markdown(
+        "<p style='color:var(--text-3);font-size:0.92rem;margin:-0.6rem 0 1.2rem;max-width:70ch;'>"
+        "<b style='color:var(--text-2);'>Demo Document</b> — our own synthetic passport, for a "
+        "controlled screening you can inspect field by field. "
+        "<b style='color:var(--text-2);'>Real Document</b> — any actual ID, run through the "
+        "general-purpose path; every check states plainly whether it applied to this document.</p>",
+        unsafe_allow_html=True)
     # index=0 only seeds the very first render; the dashboard's mode buttons
     # (render_dashboard) set st.session_state.screening_mode_radio directly
     # before rerunning, which Streamlit adopts over `index` on every render
@@ -633,9 +642,9 @@ def render_audit() -> None:
 
     st.markdown(screens.topbar_html(
         "Audit trail",
-        "Every screening appends a hash-chained record. Editing any past record in place breaks the "
-        "chain at exactly that index and the verifier names it; deleting the newest record(s) is caught "
-        "separately, against a signed checkpoint.",
+        "The proof this console can't quietly rewrite its own history. Every screening appends a "
+        "hash-chained record; editing one in place breaks the chain from that point on, and deleting "
+        "the newest record(s) instead is caught separately, against a signed checkpoint.",
         eyebrow="Tamper-evident ledger", chain_ok=(ok and untruncated)), unsafe_allow_html=True)
 
     col_left, col_right = st.columns([1.3, 1], gap="large")
