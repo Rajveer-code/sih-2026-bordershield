@@ -77,7 +77,9 @@ def render_landing() -> None:
 
     st.write("")
     with st.container():
-        st.markdown("<div class='bsx-tier-head'>What this is not</div>", unsafe_allow_html=True)
+        st.markdown("<div class='bsx-tier-head'>The detail behind those limits</div>", unsafe_allow_html=True)
+        st.caption("Same three boundaries as above, in the specifics — for anyone who wants to know "
+                    "exactly what the cryptography and the ledger do and don't prove.")
         st.write("")
         st.markdown(screens.honesty_html(), unsafe_allow_html=True)
 

@@ -80,13 +80,11 @@ def hero_html() -> str:
       <h1 class="bsx-hero-title">BorderShield<span class="dim"> AI</span></h1>
       <p class="bsx-hero-thesis">Everyone else builds a classifier.<br>
         We build a <em>trust hierarchy</em>.</p>
-      <p class="bsx-hero-lede">A screening console for border checkpoints. It reads an identity
-        document, checks whether the document&rsquo;s own details agree with each other, looks for
-        signs the image has been edited, and compares the photo against the person presenting it.
-        <br><br>Checks run in a fixed order of authority: mathematical proof first, hard rules
+      <p class="bsx-hero-lede">A screening console for border checkpoints, built around one rule:
+        checks run in a fixed order of authority &mdash; mathematical proof first, hard rules
         second, AI last. <em>AI can raise a hand and ask an officer to look closer &mdash; it can
         never, on its own, get a document rejected.</em> That limit is written into the code, not
-        promised in a slide.</p>
+        promised in a slide. What it actually checks is below.</p>
       <div class="bsx-hero-rule"></div>
     </div>
     """
@@ -178,9 +176,10 @@ def honesty_html() -> str:
         ("Synthetic documents", "Every metric in this console comes from <b>our own generated UTO "
          "specimen</b> — a fictional ICAO example state, permanently watermarked. No real travel "
          "document is used anywhere in this build."),
-        ("Demo signing authority", "The cryptography is real: X.509 chain, ECDSA P-256 signatures. "
-         "The <b>trust anchor is ours</b>, not a government's. This is not ICAO Passive Authentication "
-         "and not the PKD."),
+        ("Demo signing authority", "The cryptography is real — X.509 chain, ECDSA P-256, the same "
+         "mechanism ICAO Passive Authentication uses, minus the PKD. It proves a document "
+         "<b>hasn't changed since our own intake</b>. It was never meant to prove who issued it in "
+         "the first place — that's the registry's job above, not the signature's."),
         ("Hash chain, not blockchain", "The audit trail is an append-only hash-chained file. Real "
          "tamper-evidence for in-place edits, plus a <b>signed checkpoint</b> that separately catches "
          "someone deleting the newest record(s) and stopping — see the Audit Trail screen."),
