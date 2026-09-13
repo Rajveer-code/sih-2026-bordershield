@@ -92,6 +92,46 @@ def hero_html() -> str:
     """
 
 
+def capability_scope_html() -> str:
+    """"What this does" beside "what it doesn't do yet" -- written for a
+    first-time reviewer who has never seen the console before, not for
+    someone who already knows the codebase. Placed directly under the
+    hero, above the Trust Ladder, because a government reviewer's first
+    question is almost always "is this connected to a real database?" --
+    burying that answer three sections down reads as evasive even when
+    it isn't."""
+    does = [
+        "Reads an identity document and checks its own details agree with each other",
+        "Looks for signs the document image has been digitally edited",
+        "Verifies a digital signature proving the document hasn't changed since intake",
+        "Checks the document against a registry — active, expired, revoked, or stolen",
+        "Compares the document photo to the person presenting it",
+        "Flags if one person's identity links to more than one registry record",
+        "Explains every verdict — which check decided it, and why",
+        "Keeps a tamper-evident record of every screening",
+    ]
+    not_yet = [
+        "<b>Connect to a real government database</b> — UIDAI, DigiLocker, Passport Seva. "
+        "The registry here is our own synthetic demo, labelled everywhere it appears",
+        "<b>Confirm a document was genuinely issued</b> by any real authority — only that it's "
+        "internally consistent, unaltered, and agrees with our demo registry",
+        "<b>Read arbitrary real documents with full confidence</b> — the exact-template mode "
+        "only knows our own demo passport; the general mode is best-effort and says so",
+        "<b>Replace an officer's final judgement</b> — every verdict is a recommendation, "
+        "never an accusation",
+    ]
+    does_items = "".join(f"<li>{d}</li>" for d in does)
+    not_items = "".join(f"<li>{d}</li>" for d in not_yet)
+    return (
+        "<div class='bsx-scope'>"
+        f"<div class='bsx-scope-col does'><div class='bsx-scope-head'><span class='dot'></span>"
+        f"What it does</div><ul class='bsx-scope-list'>{does_items}</ul></div>"
+        f"<div class='bsx-scope-col not'><div class='bsx-scope-head'><span class='dot'></span>"
+        f"What it doesn't do yet</div><ul class='bsx-scope-list'>{not_items}</ul></div>"
+        "</div>"
+    )
+
+
 def trust_ladder_html() -> str:
     """The Trust Ladder stated as architecture, as one connected diagram --
     same four tiers the case file resolves live -- shown here as the

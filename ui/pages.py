@@ -45,10 +45,15 @@ def render_landing() -> None:
     """
     st.markdown(screens.hero_html(), unsafe_allow_html=True)
 
+    st.write("")
+    st.markdown(screens.capability_scope_html(), unsafe_allow_html=True)
+
     with st.container():
-        st.markdown("<div class='bsx-tier-head'>The trust ladder</div>", unsafe_allow_html=True)
-        st.caption("Five tiers, evaluated in this order. A tier's authority is fixed by the "
-                    "architecture, not by how confident a model happens to be.")
+        st.markdown("<div class='bsx-tier-head'>How it's different — the trust ladder</div>",
+                     unsafe_allow_html=True)
+        st.caption("Six tiers, evaluated in this order. A tier's authority is fixed by the "
+                    "architecture, not by how confident a model happens to be — mathematical proof "
+                    "and hard rules can end a case on their own; AI can only ask a human to look.")
         st.write("")
         st.markdown(screens.trust_ladder_html(), unsafe_allow_html=True)
 

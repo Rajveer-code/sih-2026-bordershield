@@ -1001,7 +1001,7 @@ button[kind="primary"]:hover { opacity: 0.85; }
   font-size: clamp(1.3rem, 2.3vw, 1.95rem); line-height: 1.28; letter-spacing: -0.02em;
   color: var(--text-2); max-width: 34ch; margin: 2rem 0 0 0; text-wrap: balance;
   animation: bsx-rise var(--dur) var(--ease-out) 80ms backwards; }
-.bsx-hero-thesis em { font-style: normal; color: var(--text); }
+.bsx-hero-thesis em { font-style: normal; color: var(--accent); }
 .bsx-hero-lede { font-size: 1.12rem; line-height: 1.68; color: var(--text-3);
   max-width: 62ch; margin-top: 1.5rem;
   animation: bsx-rise var(--dur) var(--ease-out) 120ms backwards; }
@@ -1042,6 +1042,37 @@ button[kind="primary"]:hover { opacity: 0.85; }
 .bsx-ladder-body .desc { font-size: 0.98rem; line-height: 1.6; color: var(--text-3); margin-top: 0.7rem; max-width: 62ch; }
 
 /* honest limitations, stated on the front page rather than discovered in Q&A */
+/* Capability scope: "what this does" beside "what it doesn't do yet" --
+   the single highest-priority addition of this pass. A first-time
+   government reviewer's #1 question ("does this talk to a real
+   database?") gets answered in the first screenful, in plain colour-
+   coded language, instead of three paragraphs down in the honesty
+   block. Deliberately amber, not red, on the right column: a disclosed
+   scope boundary is not a failure state. */
+.bsx-scope { display:grid; grid-template-columns: 1fr 1fr; gap:1px; background:var(--line);
+  border:1px solid var(--line); border-radius:var(--radius-lg); overflow:hidden; margin-bottom:1.5rem; }
+@media (max-width: 780px) { .bsx-scope { grid-template-columns: 1fr; } }
+.bsx-scope-col { background:var(--surface-lowest); padding:1.6rem 1.8rem; }
+.bsx-scope-head { display:flex; align-items:center; gap:0.6rem; font-family:var(--font-head);
+  font-weight:700; font-size:1.1rem; margin-bottom:1.1rem; }
+.bsx-scope-head .dot { width:10px; height:10px; border-radius:50%; flex-shrink:0; }
+.bsx-scope-col.does .bsx-scope-head .dot { background:var(--green); }
+.bsx-scope-col.not .bsx-scope-head .dot { background:var(--amber); }
+/* NOT flex: an <li> with mixed inline content (a <b> lead-in followed by
+   plain text) inside a flex row treats the <b> and the trailing text node
+   as TWO SEPARATE flex items with nowrap -- each wraps in its own column
+   instead of one continuous paragraph. Confirmed live (the "does" column,
+   plain text only, looked fine; "doesn't", with a <b> lead-in, rendered
+   as two side-by-side text blocks). Absolute-positioned marker + padding
+   is the pattern already proven safe for exactly this case elsewhere in
+   this file (.bsx-split-col li) -- reused rather than re-solved. */
+.bsx-scope-list { margin:0; padding:0; list-style:none; display:flex; flex-direction:column; gap:0.85rem; }
+.bsx-scope-list li { position:relative; padding-left:1.9rem; font-size:0.96rem; line-height:1.55; color:var(--text-2); }
+.bsx-scope-list li::before { position:absolute; left:0; top:0.05em; font-family:var(--font-mono); font-weight:700; }
+.bsx-scope-col.does .bsx-scope-list li::before { content:"✓"; color:var(--green); }
+.bsx-scope-col.not .bsx-scope-list li::before { content:"○"; color:var(--amber); }
+.bsx-scope-list li b { color:var(--text); }
+
 .bsx-honesty { display:grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 2rem 2.5rem; }
 .bsx-honesty-item .k { font-family: var(--font-mono); font-size: 0.78rem; letter-spacing: 0.14em;
   text-transform: uppercase; color: var(--amber); margin-bottom: 0.6rem; }
