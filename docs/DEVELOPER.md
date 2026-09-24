@@ -74,7 +74,7 @@ The console had a real readability failure: it printed a tier's *standing descri
 | `core/realdoc/` | Mode B's separate pipeline (arbitrary real documents): OCR, classification, portrait discovery, best-effort MRZ, field extraction/validation, its own capped risk fusion. See "Real Document Screening" below. Imports from `core/` (reuses forensics + face verification unchanged); nothing in `core/` imports back. |
 | `synth/` | Generates the synthetic UTO demo document, the 3 forged attacks (DOB edit, portrait swap, screen recapture), and signs everything. |
 | `ui/` | Streamlit console. `style.py` = CSS/design tokens, `screens.py` = pure render functions (data in, markup out, never touches session state), `actions.py` = session-state/ledger logic, `pages.py` = per-screen orchestration wiring the two together. |
-| `tests/` | 169 tests, run before every commit. |
+| `tests/` | 170 tests, run before every commit. |
 | `docs/` | Phase-0 research, strategy, architecture, feature backlog, execution plan. Background/rationale, not setup instructions — this README is the setup doc. |
 | `reference/` | The Stitch-generated UI reference design the console's visuals are matched to. |
 | `data/documents/`, `data/forged/`, `data/registry/registry.db`, `models/*.onnx`, `models/*.npz` | Committed — deploy needs them present with no local generation step, and `synth/*.py`'s text rendering hardcodes Windows font paths, unusable on a Linux deploy container. |
@@ -159,7 +159,7 @@ It is **capability-aware**: every check only runs when the document actually sup
 .\venv\Scripts\python.exe -m pytest tests/ -q
 ```
 
-169 tests, all passing: 46 MRZ (`test_mrz.py`), 37 issuer registry (`test_issuer.py` — lookup, status handling, field comparison, integrity, tamper detection, identity linkage, the registry-only scenarios), 26 Real Document mode (`test_realdoc.py` — arbitrary dimensions, portrait discovery, real face MATCH across 4 photos, a **genuine** real-second-identity MISMATCH end-to-end plus a forced-threshold logic test kept alongside it, quality-gate REVIEW, the 4-way MRZ status model, MRZ/crypto correctly N/A, field-extraction hallucination guards, page-boundary cropping, band-capping), 19 crypto and ledger (`test_crypto.py` — signatures, manifest, hash-chain tamper- and truncation-detection), 10 cross-document (`test_crossdoc.py`), 8 risk fusion, 6 pipeline, 5 face, 5 standards citations, 4 heatmap, 3 export. Run this before every commit — CI-equivalent until an actual CI is set up.
+170 tests, all passing: 46 MRZ (`test_mrz.py`), 37 issuer registry (`test_issuer.py` — lookup, status handling, field comparison, integrity, tamper detection, identity linkage, the registry-only scenarios), 26 Real Document mode (`test_realdoc.py` — arbitrary dimensions, portrait discovery, real face MATCH across 4 photos, a **genuine** real-second-identity MISMATCH end-to-end plus a forced-threshold logic test kept alongside it, quality-gate REVIEW, the 4-way MRZ status model, MRZ/crypto correctly N/A, field-extraction hallucination guards, page-boundary cropping, band-capping), 20 crypto and ledger (`test_crypto.py` — signatures, manifest, hash-chain tamper- and truncation-detection, the tamper demo actually breaking the chain), 10 cross-document (`test_crossdoc.py`), 8 risk fusion, 6 pipeline, 5 face, 5 standards citations, 4 heatmap, 3 export. Run this before every commit — CI-equivalent until an actual CI is set up.
 
 ## Hard rules for this repo
 

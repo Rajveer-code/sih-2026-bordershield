@@ -105,7 +105,7 @@ git clone https://github.com/Rajveer-code/sih-2026-bordershield.git
 cd sih-2026-bordershield
 python -m venv venv
 .\venv\Scripts\pip install -r requirements.txt
-.\venv\Scripts\python.exe -m pytest tests/ -q       # expect 169 passed
+.\venv\Scripts\python.exe -m pytest tests/ -q       # expect 170 passed
 .\venv\Scripts\python.exe -m streamlit run app.py
 ```
 
@@ -122,7 +122,7 @@ Nothing else to set up. The demo passport, the attack documents, and the face mo
 | OCR and PDFs | RapidOCR (ONNX backend), PyMuPDF |
 | Cryptography | Python `cryptography`: X.509 certificates, ECDSA P-256 |
 | Registry and data | SQLite, Pydantic, YAML (`core/rules/policy.yaml` holds every weight, band, and rule) |
-| Quality | pytest: **169 automated tests, all passing** |
+| Quality | pytest: **170 automated tests, all passing** |
 | Hosting | Streamlit Community Cloud (free tier). Streamlit needs a long-running server process, so serverless hosts don't fit |
 
 ## Where things live
@@ -133,7 +133,7 @@ Nothing else to set up. The demo passport, the attack documents, and the face mo
 | `core/` | The screening engine: reading, rules, forensics, face, crypto, issuer registry, risk fusion |
 | `core/realdoc/` | The separate pipeline for arbitrary real documents |
 | `synth/` | Generates the synthetic demo passport and the attack documents |
-| `tests/` | The 169 tests |
+| `tests/` | The 170 tests |
 | `docs/DEVELOPER.md` | How it is wired, deployed, and tested (for anyone reading the code) |
 | `docs/team/current-state.md` | Every screen and button: what is real, what is disabled, what is not built |
 

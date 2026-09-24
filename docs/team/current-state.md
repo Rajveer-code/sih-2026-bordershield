@@ -1,6 +1,6 @@
 # BorderShield AI — Current State (baseline for the final build)
 
-**Written:** 2026-08-30. **Updated:** 2026-09-10. **Status:** working prototype, selected for the next round. 169/169 automated tests passing. Live at the deployed URL and runnable on localhost.
+**Written:** 2026-08-30. **Updated:** 2026-09-10. **Status:** working prototype, selected for the next round. 170/170 automated tests passing. Live at the deployed URL and runnable on localhost.
 
 This is a snapshot of exactly what exists today — every screen, every button, what's real, what's disabled, what's not built. Use it as the starting point for planning the final-round build. It is **not** a roadmap or a Q&A doc — for those, see `docs/team/dossier.html` (answers to judge questions) and `docs/team/run-of-show.html` (the demo script).
 
@@ -16,7 +16,7 @@ The biggest gap in the old snapshot — **"was this document actually issued by 
 - **Case File / Audit Trail** gained JSON export buttons, and Case File gained "why is this required?" citations (real external standards where one applies, honest "our own policy" where it doesn't).
 - **New Screening (Real Document mode)** gained an optional second-document upload to cross-check date of birth between two independently-issued real documents.
 - **A real portability bug was caught and fixed**: a genuinely fresh clone would have scored the untouched genuine document CRITICAL (signature keys don't travel with git). Confirmed by actually simulating a fresh machine, then fixed — the app now self-heals its demo signatures on startup. Already on `master`.
-- Tests: **108 → 169**.
+- Tests: **108 → 170**.
 
 Full detail below.
 
@@ -136,7 +136,7 @@ Fixed sidebar nav, same order top to bottom. Nothing else exists outside these s
 
 ## 3. Test coverage & deployment
 
-- **169 automated tests**, all passing: 46 MRZ, 26 Real Document mode, 19 crypto, 37 issuer registry, 10 cross-document, 8 risk fusion, 6 pipeline, 5 face, 5 standards citations, 4 heatmap, 3 export.
+- **170 automated tests**, all passing: 46 MRZ, 26 Real Document mode, 20 crypto, 37 issuer registry, 10 cross-document, 8 risk fusion, 6 pipeline, 5 face, 5 standards citations, 4 heatmap, 3 export.
 - **Deployed** on Streamlit Community Cloud. Auto-redeploys on every push to `master`.
 - **Runs on localhost** with `git clone` → `venv` → `pip install -r requirements.txt` → `streamlit run app.py`. No manual downloads.
 
