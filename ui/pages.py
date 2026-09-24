@@ -84,6 +84,21 @@ def render_landing() -> None:
         st.markdown(screens.honesty_html(), unsafe_allow_html=True)
 
 
+def _ledger_pill() -> dict:
+    """Top-bar ledger pill for every screen. Two independent checks feed it
+    (in-place edits via the hash chain, deleted newest records via the signed
+    checkpoint), so the label names which one failed -- a truncated ledger
+    used to read "Chain broken" on the Audit page and "Ledger intact"
+    everywhere else."""
+    chain_ok, _ = ledger_module.verify_chain()
+    if not chain_ok:
+        return {"chain_ok": False, "broken_label": "Chain broken"}
+    untruncated, _ = ledger_module.verify_no_truncation()
+    if not untruncated:
+        return {"chain_ok": False, "broken_label": "History truncated"}
+    return {"chain_ok": True}
+
+
 def render_dashboard() -> None:
     chain_ok, broken_at = ledger_module.verify_chain()
     records = ledger_module.read_all()
@@ -96,7 +111,7 @@ def render_dashboard() -> None:
         "Every scenario runs through the same live verification pipeline the app uses for any "
         "document. The test documents themselves are synthetic and deliberately controlled.",
         eyebrow="PS 26188 · Ministry of Home Affairs · Sashastra Seema Bal",
-        chain_ok=chain_ok), unsafe_allow_html=True)
+        **_ledger_pill()), unsafe_allow_html=True)
 
     # Four real status cards -- each backed by an actual file check or
     # ledger read, never a fabricated "engine version" or confidence
@@ -234,12 +249,11 @@ def render_dashboard() -> None:
 
 
 def render_capture() -> None:
-    chain_ok, _ = ledger_module.verify_chain()
     st.markdown(screens.topbar_html(
         "New screening",
         "Upload a document and, optionally, a face photo — the same pipeline the Attack Wall "
         "runs, on whatever you actually hand it.",
-        eyebrow="Intake", chain_ok=chain_ok), unsafe_allow_html=True)
+        eyebrow="Intake", **_ledger_pill()), unsafe_allow_html=True)
 
     st.markdown(
         "<p style='color:var(--text-3);font-size:0.92rem;margin:-0.6rem 0 1.2rem;max-width:70ch;'>"
@@ -499,12 +513,11 @@ def render_case() -> None:
     actions.ensure_active_case()
     verdict, ctx = st.session_state.last_verdict, st.session_state.last_ctx
     path, case_id = st.session_state.active_path, st.session_state.case_id
-    chain_ok, _ = ledger_module.verify_chain()
     policy = load_policy()
 
     st.markdown(screens.topbar_html(
         "Case file", eyebrow=f"Case {case_id} · {Path(path).name}",
-        case_chip=f"CASE-ID: {case_id}", chain_ok=chain_ok), unsafe_allow_html=True)
+        case_chip=f"CASE-ID: {case_id}", **_ledger_pill()), unsafe_allow_html=True)
 
     # 1. THE VERDICT -- the answer first, before any of the evidence that
     #    produced it. An officer reads this and nothing else in the common case.
@@ -647,7 +660,7 @@ def render_audit() -> None:
         "The proof this console can't quietly rewrite its own history. Every screening appends a "
         "hash-chained record; editing one in place breaks the chain from that point on, and deleting "
         "the newest record(s) instead is caught separately, against a signed checkpoint.",
-        eyebrow="Tamper-evident ledger", chain_ok=(ok and untruncated)), unsafe_allow_html=True)
+        eyebrow="Tamper-evident ledger", **_ledger_pill()), unsafe_allow_html=True)
 
     col_left, col_right = st.columns([1.3, 1], gap="large")
     with col_left:
@@ -743,7 +756,7 @@ def render_status() -> None:
         "System status",
         "Models, signing authority, policy and ledger, read directly off this machine -- "
         "not a status page someone remembered to update.",
-        eyebrow="Verification", chain_ok=chain_ok), unsafe_allow_html=True)
+        eyebrow="Verification", **_ledger_pill()), unsafe_allow_html=True)
 
     models_ready = all(m["exists"] for m in models)
     st.markdown(screens.status_grid_html([

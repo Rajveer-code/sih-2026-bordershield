@@ -53,11 +53,11 @@ def sidebar_identity_html() -> str:
 
 
 def topbar_html(title: str, subtitle: str = "", case_chip: str = "", chain_ok: bool | None = None,
-                 eyebrow: str = "") -> str:
+                 eyebrow: str = "", broken_label: str = "Chain broken") -> str:
     chip_html = f"<span class='case-chip'>{case_chip}</span>" if case_chip else ""
     chain_html = ""
     if chain_ok is not None:
-        cls, txt = ("ok", "Ledger intact") if chain_ok else ("broken", "Chain broken")
+        cls, txt = ("ok", "Ledger intact") if chain_ok else ("broken", broken_label)
         chain_html = f"<span class='bsx-chain-pill {cls}'>{txt}</span>"
     sub_html = f"<div class='sub'>{subtitle}</div>" if subtitle else ""
     eyebrow_html = f"<div class='eyebrow'>{eyebrow}</div>" if eyebrow else ""
