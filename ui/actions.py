@@ -170,14 +170,17 @@ def simulate_truncation() -> bool:
 def simulate_tamper() -> bool:
     """Rewrites the oldest ledger record's band by hand -- demonstrates
     tamper-evidence, not tamper-prevention. Returns False if there is
-    nothing logged yet to tamper with."""
+    nothing logged yet to tamper with. The band is FLIPPED, not set to a
+    fixed value: the oldest record is usually the Genuine scenario (already
+    LOW), and writing LOW over LOW changes nothing, so the chain stayed
+    intact and the demo silently did nothing."""
     records = ledger.read_all()
     if len(records) < 1:
         return False
     path_l = PATHS["results"] / "ledger.jsonl"
     lines = path_l.read_text(encoding="utf-8").splitlines()
     record = json.loads(lines[0])
-    record["band"] = "LOW"
+    record["band"] = "CRITICAL" if record.get("band") == "LOW" else "LOW"
     lines[0] = json.dumps(record, sort_keys=True)
     path_l.write_text("\n".join(lines) + "\n", encoding="utf-8")
     return True

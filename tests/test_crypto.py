@@ -281,3 +281,22 @@ def test_ledger_never_stores_pii_by_construction():
     import inspect
     sig = inspect.signature(ledger.append)
     assert set(sig.parameters) == {"record", "path"}
+
+
+def test_simulate_tamper_breaks_chain_when_oldest_record_is_already_low(tmp_path: Path, monkeypatch):
+    """The demo button used to write "LOW" into the oldest record. The oldest
+    record is normally the Genuine scenario, already LOW, so nothing changed,
+    the chain stayed intact, and the demo silently did nothing."""
+    from config import PATHS
+    from ui.actions import simulate_tamper
+
+    monkeypatch.setitem(PATHS, "results", tmp_path)
+    for i in range(3):
+        ledger.append({"case_id": f"case_{i:03d}", "band": "LOW"})
+    assert ledger.verify_chain()[0] is True
+
+    assert simulate_tamper() is True
+
+    ok, broken_at = ledger.verify_chain()
+    assert ok is False
+    assert broken_at == 0
