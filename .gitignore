@@ -37,3 +37,6 @@ results/
 
 # working plan files -- not part of the shipped project
 PLAN_*.md
+
+# local dev-server config (machine-specific absolute paths)
+.claude/
